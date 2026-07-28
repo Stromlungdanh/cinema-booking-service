@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: booking-service
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:cinema_booking}
+    username: ${DB_USERNAME:cinema_user}
+    password: ${DB_PASSWORD:cinema_pass}
+
+  jpa:
+    # QUAN TRONG: Flyway la nguoi DUY NHAT duoc phep tao/sua schema.
+    # Hibernate chi "validate" xem Entity co khop voi bang that trong DB khong.
+    # Neu lech (thieu cot, sai kieu du lieu...) app se bao loi ngay khi start,
+    # thay vi am tham sinh ra schema sai.
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+server:
+  port: 8080
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

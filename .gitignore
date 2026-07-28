@@ -1,0 +1,20 @@
+# Build output
+target/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+
+# Secrets - KHONG commit file .env that
+.env
+
+# Logs
+*.log
