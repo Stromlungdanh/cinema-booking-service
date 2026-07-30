@@ -1,6 +1,7 @@
 package com.cinema.booking.movie;
 
 import com.cinema.booking.common.exception.ResourceNotFoundException;
+import com.cinema.booking.movie.dto.MovieCastRequest;
 import com.cinema.booking.movie.dto.MovieRequest;
 import com.cinema.booking.movie.dto.MovieResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -40,14 +42,16 @@ class MovieControllerTest {
     private MovieRequest validRequest() {
         return new MovieRequest(
                 "Avatar 3", "Mo ta", 180, "English",
-                LocalDate.of(2026, 12, 20), null, null, MovieStatus.COMING_SOON
+                LocalDate.of(2026, 12, 20), null, null, MovieStatus.COMING_SOON,
+                List.of(1L), List.of(new MovieCastRequest(2L, "Jake Sully"))
         );
     }
 
     private MovieResponse sampleResponse(Long id) {
         return new MovieResponse(
                 id, "Avatar 3", "Mo ta", 180, "English",
-                LocalDate.of(2026, 12, 20), null, null, MovieStatus.COMING_SOON, 0L
+                LocalDate.of(2026, 12, 20), null, null, MovieStatus.COMING_SOON, 0L,
+                List.of(), List.of()
         );
     }
 
@@ -67,7 +71,8 @@ class MovieControllerTest {
     void create_returns400WhenTitleBlank() throws Exception {
         MovieRequest invalid = new MovieRequest(
                 "", "Mo ta", 180, "English",
-                LocalDate.of(2026, 12, 20), null, null, MovieStatus.COMING_SOON
+                LocalDate.of(2026, 12, 20), null, null, MovieStatus.COMING_SOON,
+                null, null
         );
 
         mockMvc.perform(post("/api/admin/movies")

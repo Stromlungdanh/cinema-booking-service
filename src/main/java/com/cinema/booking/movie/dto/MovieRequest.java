@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 import java.time.LocalDate;
+import java.util.List;
 
 // Input cua Create/Update. Tach rieng voi MovieResponse: form nhap tu Admin
 // khong nen quyet dinh duoc field nao la server-controlled (vi du viewCount).
@@ -18,6 +19,11 @@ public record MovieRequest(
         LocalDate releaseDate,
         String posterUrl,
         String trailerUrl,
-        @NotNull(message = "Trang thai khong duoc de trong") MovieStatus status
+        @NotNull(message = "Trang thai khong duoc de trong") MovieStatus status,
+        // Danh sach day du id the loai / dien vien - moi lan gui la ghi de toan
+        // bo quan he cu (replace-all), khong bat buoc vi phim moi tao co the
+        // chua gan gi.
+        List<Long> genreIds,
+        List<MovieCastRequest> cast
 ) {
 }

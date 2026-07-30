@@ -25,6 +25,7 @@ timeline
         Tài liệu hoá : ROADMAP.md : PROGRESS_LOG.md
     section 2026-07-30 — Xác nhận build
         mvn test pass (28 test) : commit b1cc1c6
+        Quan he Movie-Genre/Actor : MovieCast entity : test (31 test)
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -271,6 +272,60 @@ Chạy `mvn test`: 28 test, 0 fail/error, `BUILD SUCCESS`. Commit toàn bộ
 Genre, Actor: Service + Controller, và `HealthControllerTest`) đều pass.
 
 **Trạng thái:** đã commit (`b1cc1c6`).
+
+</details>
+
+<details>
+<summary><strong>2026-07-30 — Nối quan hệ nhiều-nhiều Movie ↔ Genre / Movie ↔ Actor</strong> — MovieCast entity cho movie_actors, @ManyToMany cho movie_genres</summary>
+
+**Mục đích:** màn hình "Chi tiết phim" (mục 3, `ROADMAP.md`) cần hiển thị
+thể loại và dàn diễn viên/vai diễn — bảng `movie_genres`, `movie_actors`
+đã có sẵn từ V1 nhưng chưa có liên kết ở tầng Java. Bắt buộc phải xong
+trước khi làm Showtime/Booking.
+
+**Đã làm:**
+- `movie_genres` (thuần, không có cột riêng) → `Movie.genres` là
+  `@ManyToMany` với `@JoinTable`, một chiều (không thêm `Genre.movies`
+  vì chưa có màn hình nào cần).
+- `movie_actors` (có thêm cột `role_name` gắn với từng cặp) → không
+  dùng `@ManyToMany` được vì nó không mang thêm dữ liệu trên quan hệ.
+  Tạo entity liên kết riêng: `movie/MovieCastId.java` (`@Embeddable`,
+  khóa chính ghép `movieId` + `actorId`) và `movie/MovieCast.java`
+  (`@EmbeddedId`, `@ManyToOne @MapsId` tới `Movie` và `Actor`, field
+  `roleName`). `Movie.cast` là `@OneToMany(cascade = ALL, orphanRemoval
+  = true)` để Service chỉ cần `clear()` + `addAll()` là Hibernate tự xoá
+  dòng cũ/thêm dòng mới.
+- `movie/dto/MovieCastRequest.java` (`actorId`, `roleName`),
+  `movie/dto/MovieCastResponse.java` (phẳng hoá — `actorId, actorName,
+  avatarUrl, roleName` — để FE không phải lồng `ActorResponse`).
+  `MovieRequest` thêm `genreIds`, `cast` (không bắt buộc — phim mới có
+  thể chưa gán gì). `MovieResponse` thêm `genres`, `cast`.
+- `MovieMapper` giữ nguyên style hàm tĩnh thuần — không tự query DB,
+  chỉ lắp ráp entity đã resolve sẵn (`toMovieCast`, `toResponse` mở
+  rộng map thêm `genres`/`cast`).
+- `MovieService`: tiêm thêm `GenreRepository`, `ActorRepository`;
+  `resolveGenres`/`resolveCast` dùng `findAllById` (1 query, tránh N+1),
+  ném `ResourceNotFoundException` nếu có id không tồn tại. `create()`/
+  `update()` theo kiểu **replace-all**: mỗi lần gửi request là ghi đè
+  toàn bộ genres/cast cũ.
+
+**Quyết định kỹ thuật:**
+- `create()` phải gọi `movieRepository.save(movie)` **trước** khi build
+  `MovieCast` — `movies.id` dùng chiến lược `IDENTITY`, chỉ có giá trị
+  sau khi insert, mà `MovieCastId` cần `movie.getId()` để dựng khóa
+  chính ghép.
+- Cố tình không thêm chiều ngược (`Genre.movies`, `Actor.movies`) và
+  không tối ưu N+1 khi `findAll()` load quan hệ của nhiều phim cùng lúc
+  (`@EntityGraph`/fetch join) — chưa có nhu cầu thật, để dành khi có vấn
+  đề hiệu năng cụ thể.
+
+**Test:** `MovieServiceTest` thêm mock `GenreRepository`,
+`ActorRepository`; test case mới `create_resolvesGenresAndCast`,
+`create_throwsWhenGenreIdNotFound`, `update_replacesExistingCastAndGenres`.
+`MovieControllerTest` cập nhật request/response mẫu cho có `genreIds`,
+`cast`. Tổng `mvn test`: 31 test, 0 fail/error, `BUILD SUCCESS`.
+
+**Trạng thái:** đã chạy `mvn test` pass, chưa commit.
 
 </details>
 

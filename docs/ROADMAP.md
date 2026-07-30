@@ -98,7 +98,7 @@ Checklist:
 - [x] CRUD Movie (`/api/admin/movies`)
 - [x] CRUD Genre (`/api/admin/genres`)
 - [x] CRUD Actor (`/api/admin/actors`)
-- [ ] Quan hệ nhiều-nhiều Movie ↔ Genre, Movie ↔ Actor (bảng `movie_genres`, `movie_actors`)
+- [x] Quan hệ nhiều-nhiều Movie ↔ Genre, Movie ↔ Actor (bảng `movie_genres`, `movie_actors`)
 - [ ] CRUD Brand (`/api/admin/brands`)
 - [ ] CRUD Cinema (`/api/admin/cinemas`, thuộc 1 brand)
 - [ ] CRUD Room (thuộc 1 cinema)
@@ -137,27 +137,20 @@ cùng lúc — đây là phần "học được nhiều nhất" của giai đo�
 
 ## 6. Đang làm tới đâu (snapshot)
 
-Đang ở **Giai đoạn 1**. Đã có CRUD cho 3 entity tĩnh không có quan hệ
-phức tạp: `Movie`, `Genre`, `Actor` (entity + repository + mapper thủ
-công + DTO request/response tách riêng + service + controller REST +
-unit test service bằng Mockito + slice test controller bằng
-`@WebMvcTest`). Đã xác nhận `mvn test` pass (28 test) và commit
-(`b1cc1c6`) — máy dev dùng Maven bundle theo IntelliJ vì không có `mvn`
-cài rời trên PATH.
+Đang ở **Giai đoạn 1**. Đã có CRUD cho 3 entity tĩnh: `Movie`, `Genre`,
+`Actor`, và đã nối quan hệ nhiều-nhiều `Movie ↔ Genre` (`@ManyToMany`
+thuần) và `Movie ↔ Actor` (entity liên kết `MovieCast` vì bảng
+`movie_actors` mang thêm `role_name`). `mvn test` pass (31 test).
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).
 
 ## 7. Sắp tới làm gì (ngay tiếp theo)
 
-Theo đúng thứ tự ERD (`docs/ERD.md`), việc tiếp theo hợp lý nhất là 1
-trong 2 hướng:
-1. Nối quan hệ nhiều-nhiều Movie↔Genre / Movie↔Actor (để màn hình 2 —
-   chi tiết phim — có đủ dữ liệu thể loại/diễn viên), **hoặc**
-2. Rẽ sang nhánh Brand → Cinema → Room → SeatType → Seat (để màn hình 3
-   — chọn hãng/rạp — có dữ liệu thật).
-
-Cả hai đều cần xong trước khi làm được Showtime và Booking.
+Quan hệ Movie↔Genre/Actor đã xong. Việc tiếp theo hợp lý nhất: rẽ sang
+nhánh Brand → Cinema → Room → SeatType → Seat (để màn hình 3 — chọn
+hãng/rạp — có dữ liệu thật). Đây là bước bắt buộc trước khi làm được
+Showtime và Booking.
 
 ## 8. Quy ước cập nhật tài liệu này
 
