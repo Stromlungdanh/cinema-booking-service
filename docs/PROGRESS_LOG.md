@@ -325,7 +325,7 @@ trước khi làm Showtime/Booking.
 `MovieControllerTest` cập nhật request/response mẫu cho có `genreIds`,
 `cast`. Tổng `mvn test`: 31 test, 0 fail/error, `BUILD SUCCESS`.
 
-**Trạng thái:** đã chạy `mvn test` pass, chưa commit.
+**Trạng thái:** đã commit (`d7f37b4`).
 
 </details>
 
