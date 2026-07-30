@@ -141,8 +141,9 @@ cùng lúc — đây là phần "học được nhiều nhất" của giai đo�
 phức tạp: `Movie`, `Genre`, `Actor` (entity + repository + mapper thủ
 công + DTO request/response tách riêng + service + controller REST +
 unit test service bằng Mockito + slice test controller bằng
-`@WebMvcTest`). Chưa commit — các file này đang ở trạng thái untracked
-trong git.
+`@WebMvcTest`). Đã xác nhận `mvn test` pass (28 test) và commit
+(`b1cc1c6`) — máy dev dùng Maven bundle theo IntelliJ vì không có `mvn`
+cài rời trên PATH.
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).

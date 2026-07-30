@@ -23,6 +23,8 @@ timeline
         CRUD Genre : entity đơn giản : test
         CRUD Actor : entity + avatarUrl : test
         Tài liệu hoá : ROADMAP.md : PROGRESS_LOG.md
+    section 2026-07-30 — Xác nhận build
+        mvn test pass (28 test) : commit b1cc1c6
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -183,9 +185,9 @@ từng module).
 **Test:** `GenreServiceTest`, `GenreControllerTest` — cùng cấu trúc
 test như Movie (Mockito cho Service, `@WebMvcTest` cho Controller).
 
-**Trạng thái:** chưa commit (untracked). Chưa chạy được `mvn test` để
-xác nhận build pass vì máy dev dùng trong phiên làm việc này không có
-`mvn` trên PATH — **cần tự chạy `mvn test` để xác nhận trước khi commit.**
+**Trạng thái:** đã commit (`b1cc1c6`). `mvn test` pass (dùng Maven 3
+bundle sẵn trong IntelliJ, `plugins/maven/lib/maven3/bin`, vì máy này
+không có `mvn` cài rời trên PATH).
 
 </details>
 
@@ -208,8 +210,7 @@ xác nhận build pass vì máy dev dùng trong phiên làm việc này không c
 **Test:** `ActorServiceTest`, `ActorControllerTest` — cùng cấu trúc
 test như Movie/Genre.
 
-**Trạng thái:** chưa commit (untracked). Chưa xác nhận `mvn test` pass
-(lý do giống Genre ở trên).
+**Trạng thái:** đã commit (`b1cc1c6`). `mvn test` pass.
 
 </details>
 
@@ -232,7 +233,7 @@ code/git history.
   (git log chỉ có 2 commit gộp "first commit" nên không tách được mốc
   thời gian chi tiết hơn từ git — dùng timestamp file làm mốc tương đối).
 
-**Trạng thái:** cả 2 file mới, chưa commit.
+**Trạng thái:** đã commit (`b1cc1c6`).
 
 </details>
 
@@ -248,7 +249,28 @@ thành hình), nhóm theo ngày và giai đoạn; gói nội dung chi tiết c�
 entry cũ vào `<details><summary>` để mặc định thu gọn, chỉ hiện dòng
 tóm tắt — bấm vào mới xem đầy đủ Mục đích/Đã làm/Test/Trạng thái.
 
-**Trạng thái:** chưa commit (untracked).
+**Trạng thái:** đã commit (`b1cc1c6`).
+
+</details>
+
+<details>
+<summary><strong>2026-07-30 — Xác nhận build, commit lô CRUD đầu tiên</strong> — cài Maven qua bundle IntelliJ, `mvn test` pass, commit Movie/Genre/Actor/common</summary>
+
+**Mục đích:** giải phóng điểm nghẽn "chưa xác nhận build" đã ghi ở các
+entry trước, để có thể commit và yên tâm rẽ nhánh tiếp theo trên nền
+code đã biết chắc chạy được.
+
+**Đã làm:** phát hiện máy này không có `mvn` hay Maven Wrapper trên
+PATH, nhưng có sẵn JDK 21 và Maven 3.9.11 bundle theo IntelliJ IDEA
+(`.../plugins/maven/lib/maven3/bin`) — dùng trực tiếp thay vì cài thêm.
+Chạy `mvn test`: 28 test, 0 fail/error, `BUILD SUCCESS`. Commit toàn bộ
+`common/`, `actor/`, `genre/`, `movie/` (main + test) và 2 file doc
+(`b1cc1c6`).
+
+**Test:** không thêm test mới — chỉ xác nhận 28 test đã có (Movie,
+Genre, Actor: Service + Controller, và `HealthControllerTest`) đều pass.
+
+**Trạng thái:** đã commit (`b1cc1c6`).
 
 </details>
 
