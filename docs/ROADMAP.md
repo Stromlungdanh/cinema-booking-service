@@ -99,10 +99,10 @@ Checklist:
 - [x] CRUD Genre (`/api/admin/genres`)
 - [x] CRUD Actor (`/api/admin/actors`)
 - [x] Quan hệ nhiều-nhiều Movie ↔ Genre, Movie ↔ Actor (bảng `movie_genres`, `movie_actors`)
-- [ ] CRUD Brand (`/api/admin/brands`)
-- [ ] CRUD Cinema (`/api/admin/cinemas`, thuộc 1 brand)
-- [ ] CRUD Room (thuộc 1 cinema)
-- [ ] CRUD SeatType + sinh Seat theo sơ đồ phòng
+- [x] CRUD Brand (`/api/admin/brands`)
+- [x] CRUD Cinema (`/api/admin/cinemas`, thuộc 1 brand)
+- [x] CRUD Room (thuộc 1 cinema)
+- [x] CRUD SeatType + sinh Seat theo sơ đồ phòng
 - [ ] CRUD Showtime (gắn Movie + Room + khung giờ)
 - [ ] API public cho User: danh sách phim nổi bật/đang chiếu/sắp chiếu, chi tiết phim, danh sách rạp theo hãng, suất chiếu theo rạp/ngày, sơ đồ ghế theo suất chiếu
 - [ ] Luồng Booking (tạo booking từ ghế đã chọn, tính tiền, trạng thái PENDING/PAID/CANCELLED/EXPIRED)
@@ -137,20 +137,23 @@ cùng lúc — đây là phần "học được nhiều nhất" của giai đo�
 
 ## 6. Đang làm tới đâu (snapshot)
 
-Đang ở **Giai đoạn 1**. Đã có CRUD cho 3 entity tĩnh: `Movie`, `Genre`,
-`Actor`, và đã nối quan hệ nhiều-nhiều `Movie ↔ Genre` (`@ManyToMany`
-thuần) và `Movie ↔ Actor` (entity liên kết `MovieCast` vì bảng
-`movie_actors` mang thêm `role_name`). `mvn test` pass (31 test).
+Đang ở **Giai đoạn 1**. Đã có CRUD cho toàn bộ entity tĩnh: `Movie`,
+`Genre`, `Actor` (+ quan hệ nhiều-nhiều `Movie ↔ Genre`/`Movie ↔ Actor`),
+và nhánh `Brand → Cinema → Room → SeatType`. `Seat` không có CRUD từng
+ghế mà có API "sinh theo sơ đồ phòng" (`POST/GET
+/api/admin/rooms/{roomId}/seats`) — ghi đè toàn bộ ghế của 1 phòng theo
+danh sách hàng (nhãn hàng + số cột + loại ghế). `mvn test` pass (77 test).
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).
 
 ## 7. Sắp tới làm gì (ngay tiếp theo)
 
-Quan hệ Movie↔Genre/Actor đã xong. Việc tiếp theo hợp lý nhất: rẽ sang
-nhánh Brand → Cinema → Room → SeatType → Seat (để màn hình 3 — chọn
-hãng/rạp — có dữ liệu thật). Đây là bước bắt buộc trước khi làm được
-Showtime và Booking.
+Toàn bộ entity tĩnh của Giai đoạn 1 đã xong (Movie/Genre/Actor + quan hệ,
+Brand/Cinema/Room/SeatType/Seat). Việc tiếp theo: **CRUD Showtime** (gắn
+Movie + Room + khung giờ), sau đó API public cho User (danh sách phim
+nổi bật/đang chiếu, rạp theo hãng, suất chiếu theo rạp/ngày, sơ đồ ghế
+theo suất chiếu) — đây là bước cuối trước khi vào luồng Booking.
 
 ## 8. Quy ước cập nhật tài liệu này
 

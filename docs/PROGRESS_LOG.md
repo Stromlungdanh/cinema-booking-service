@@ -26,6 +26,7 @@ timeline
     section 2026-07-30 — Xác nhận build
         mvn test pass (28 test) : commit b1cc1c6
         Quan he Movie-Genre/Actor : MovieCast entity : test (31 test)
+        Brand-Cinema-Room-SeatType-Seat : sinh so do ghe : test (77 test)
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -326,6 +327,65 @@ trước khi làm Showtime/Booking.
 `cast`. Tổng `mvn test`: 31 test, 0 fail/error, `BUILD SUCCESS`.
 
 **Trạng thái:** đã commit (`d7f37b4`).
+
+</details>
+
+<details>
+<summary><strong>2026-07-30 — Nhánh Brand → Cinema → Room → SeatType → Seat</strong> — CRUD chuẩn cho 4 entity + API sinh sơ đồ ghế cho Room</summary>
+
+**Mục đích:** phục vụ tab "Chọn rạp" (màn hình 1: chọn hãng/rạp) và sơ
+đồ ghế sau này (màn hình 4, cả 2 tab). Bắt buộc phải xong trước khi làm
+Showtime/Booking.
+
+**Đã làm:**
+- `brand/` — CRUD chuẩn y hệt `genre/` (không có entity cha): `name`,
+  `logoUrl`.
+- `cinema/` — CRUD thuộc 1 `Brand`. `Cinema` có `@ManyToOne Brand`
+  (không back-ref `Brand.cinemas`). `CinemaService` tiêm thêm
+  `BrandRepository`, resolve `brandId` → `ResourceNotFoundException`
+  nếu không có (đúng cách `MovieService.resolveGenres` đã làm).
+  `CinemaResponse` phẳng hoá `brandId` + `brandName` thay vì lồng
+  `BrandResponse`.
+- `room/` — CRUD thuộc 1 `Cinema`, cấu trúc y hệt `cinema/`. `roomType`
+  cố tình để `String` tự do (mặc định `"2D"`) thay vì enum — schema
+  `rooms.room_type` không có `CHECK` constraint như `movies.status`,
+  nên không ép về 1 tập giá trị cố định ở tầng Java.
+- `seattype/` — CRUD chuẩn y hệt `genre/`: `name` (unique),
+  `priceMultiplier` (`BigDecimal`, khớp `NUMERIC(4,2)`).
+- `seat/` — **không phải CRUD chuẩn**: ghế luôn sinh hàng loạt theo sơ
+  đồ phòng, không có form tạo/sửa từng ghế. API:
+  `POST /api/admin/rooms/{roomId}/seats` (`SeatLayoutRequest` — danh
+  sách hàng, mỗi hàng gồm `rowLabel`, `columnCount`, `seatTypeId`) ghi
+  đè toàn bộ ghế cũ của phòng: `SeatService.generateLayout` validate
+  Room + mọi `seatTypeId` tồn tại, gọi `seatRepository.deleteByRoomId`
+  rồi `flush()` (bắt buộc — nếu không flush, DELETE có thể chưa xuống
+  DB trước khi INSERT ghế mới, vi phạm `UNIQUE(room_id, row_label,
+  col_number)` khi sinh lại đúng layout cũ), rồi sinh ghế mới đánh số
+  cột `1..columnCount` cho mỗi hàng.
+  `GET /api/admin/rooms/{roomId}/seats` trả sơ đồ hiện tại
+  (`findByRoomIdOrderByRowLabelAscColNumberAsc`).
+
+**Quyết định kỹ thuật:**
+- Không thêm collection ngược (`Brand.cinemas`, `Cinema.rooms`,
+  `Room.seats`) — chưa màn hình nào cần duyệt theo chiều đó, giữ nhất
+  quán với quyết định đã đưa ra ở Movie↔Genre/Actor.
+- Không tự bắt `DataIntegrityViolationException` khi 2 hàng trong 1
+  request trùng `rowLabel` — để DB tự chặn bằng
+  `UNIQUE(room_id, row_label, col_number)`, giữ nhất quán với cách
+  Genre/Movie hiện tại chưa xử lý case tương tự.
+- Seat không có sửa/xoá từng ghế lẻ, chỉ generate cả layout — đúng đúng
+  phạm vi "sinh Seat theo sơ đồ phòng" trong checklist, tránh code thừa
+  cho use case chưa xuất hiện.
+
+**Test:** mỗi entity CRUD chuẩn (Brand, Cinema, Room, SeatType) có
+`XxxServiceTest` (Mockito) + `XxxControllerTest` (`@WebMvcTest`), đúng
+bộ test case như Movie/Genre. `SeatServiceTest` verify sinh đúng số ghế
+theo `columnCount`, gọi `deleteByRoomId` trước khi insert, ném
+`ResourceNotFoundException` khi thiếu `roomId`/`seatTypeId`.
+`SeatControllerTest` verify `POST`/`GET` cơ bản. Tổng `mvn test`: 77
+test, 0 fail/error, `BUILD SUCCESS`.
+
+**Trạng thái:** đã chạy `mvn test` pass, chưa commit.
 
 </details>
 
