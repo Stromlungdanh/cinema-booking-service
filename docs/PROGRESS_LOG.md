@@ -385,7 +385,7 @@ theo `columnCount`, gọi `deleteByRoomId` trước khi insert, ném
 `SeatControllerTest` verify `POST`/`GET` cơ bản. Tổng `mvn test`: 77
 test, 0 fail/error, `BUILD SUCCESS`.
 
-**Trạng thái:** đã chạy `mvn test` pass, chưa commit.
+**Trạng thái:** đã commit (`eec952f`).
 
 </details>
 
