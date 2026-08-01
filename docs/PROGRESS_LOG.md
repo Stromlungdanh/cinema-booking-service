@@ -27,6 +27,8 @@ timeline
         mvn test pass (28 test) : commit b1cc1c6
         Quan he Movie-Genre/Actor : MovieCast entity : test (31 test)
         Brand-Cinema-Room-SeatType-Seat : sinh so do ghe : test (77 test)
+    section 2026-08-01 — Showtime
+        CRUD Showtime : gan Movie + Room : test (88 test)
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -386,6 +388,43 @@ theo `columnCount`, gọi `deleteByRoomId` trước khi insert, ném
 test, 0 fail/error, `BUILD SUCCESS`.
 
 **Trạng thái:** đã commit (`eec952f`).
+
+</details>
+
+<details>
+<summary><strong>2026-08-01 — CRUD Showtime (<code>/api/admin/showtimes</code>)</strong> — gắn Movie + Room + khung giờ + giá vé cơ bản, hoàn tất phần entity của Giai đoạn 1</summary>
+
+**Mục đích:** mục cuối cùng còn thiếu trước khi làm API public cho User
+và luồng Booking — suất chiếu là điểm nối giữa `Movie` và `Room`, cần có
+trước khi sinh sơ đồ ghế theo suất chiếu hay tạo booking.
+
+**Đã làm:** cấu trúc CRUD y hệt `room/` (resolve 2 FK thay vì 1) —
+`showtime/Showtime.java` (entity: `@ManyToOne Movie`, `@ManyToOne Room`,
+`startTime`/`endTime` kiểu `OffsetDateTime` khớp cột `TIMESTAMPTZ`,
+`basePrice` kiểu `BigDecimal` khớp `NUMERIC(10,2)`),
+`showtime/ShowtimeRepository.java`,
+`showtime/dto/ShowtimeRequest.java` (`movieId`, `roomId`, `startTime`,
+`endTime`, `basePrice` đều `@NotNull`; `basePrice` thêm `@Positive`),
+`showtime/dto/ShowtimeResponse.java` (phẳng hoá `movieTitle`,
+`roomName` — đúng cách `RoomResponse` phẳng hoá `cinemaName`),
+`showtime/ShowtimeMapper.java`, `showtime/ShowtimeService.java`
+(`getMovieOrThrow`/`getRoomOrThrow` giống `RoomService.getCinemaOrThrow`),
+`showtime/ShowtimeController.java` (`/api/admin/showtimes`).
+
+**Quyết định kỹ thuật:** không thêm validate chéo `endTime` phải sau
+`startTime` — không có tiền lệ validate nghiệp vụ kiểu này ở các entity
+khác (VD: Genre/Movie cũng chưa bắt trùng `name`), giữ pattern nhất
+quán; để dành xử lý đồng loạt khi có nhu cầu thật.
+
+**Test:** `ShowtimeServiceTest` (Mockito, mock cả `MovieRepository` và
+`RoomRepository`), `ShowtimeControllerTest` (`@WebMvcTest`) — cùng bộ
+test case như Room (create thành công, ném `ResourceNotFoundException`
+khi thiếu `movieId`/`roomId`, `findById` 404, update, delete). Tổng
+`mvn test`: 88 test, 0 fail/error, `BUILD SUCCESS` (dùng Maven bundle
+theo IntelliJ Community 2025.2.6,
+`plugins/maven/lib/maven3/bin`).
+
+**Trạng thái:** chưa commit.
 
 </details>
 
