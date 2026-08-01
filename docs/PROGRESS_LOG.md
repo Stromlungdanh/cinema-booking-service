@@ -29,6 +29,7 @@ timeline
         Brand-Cinema-Room-SeatType-Seat : sinh so do ghe : test (77 test)
     section 2026-08-01 — Showtime
         CRUD Showtime : gan Movie + Room : test (88 test)
+        API public cho User : movies/brands/cinemas/showtimes/seat-map : test (109 test)
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -423,6 +424,85 @@ khi thiếu `movieId`/`roomId`, `findById` 404, update, delete). Tổng
 `mvn test`: 88 test, 0 fail/error, `BUILD SUCCESS` (dùng Maven bundle
 theo IntelliJ Community 2025.2.6,
 `plugins/maven/lib/maven3/bin`).
+
+**Trạng thái:** chưa commit.
+
+</details>
+
+<details>
+<summary><strong>2026-08-01 — API public cho User (<code>/api/movies</code>, <code>/api/brands</code>, <code>/api/cinemas/{cinemaId}/showtimes</code>, <code>/api/showtimes/{id}/seats</code>)</strong> — endpoint không cần quyền ADMIN, phục vụ luồng UX ở màn hình User</summary>
+
+**Mục đích:** hoàn tất Giai đoạn 1 phần "đọc dữ liệu" — trang chủ phim,
+chi tiết phim, chọn hãng/rạp, chọn suất, chọn ghế (mục 3, `ROADMAP.md`)
+— trước khi vào luồng Booking. Tách hẳn khỏi `/api/admin/...` vì sau
+này thêm JWT, các endpoint dưới `/api/admin` sẽ yêu cầu `hasRole("ADMIN")`
+còn nhóm này phải mở cho mọi người.
+
+**Đã làm:**
+- `movie/MoviePublicController.java` (`/api/movies`): `GET` (query
+  `status`/`q`, forward vào `MovieService.search` mới — service tự
+  quyết định dùng `findByTitleContainingIgnoreCase`, `findByStatus`,
+  hay `findAll` tuỳ tham số nào có), `GET /featured?limit=` (top theo
+  `viewCount` desc, `MovieService.findFeatured`), `GET /{id}` (tái dùng
+  nguyên `MovieService.findById` đã có, không đổi gì).
+- `brand/BrandPublicController.java` (`/api/brands`): `GET`, tái dùng
+  `BrandService.findAll()` có sẵn, không thêm method mới.
+- `cinema/CinemaPublicController.java`
+  (`/api/brands/{brandId}/cinemas`): `GET`, method mới
+  `CinemaService.findByBrand(brandId)` validate brand tồn tại (tái dùng
+  `getBrandOrThrow` đã có) rồi gọi `CinemaRepository.findByBrandId`
+  (derived query mới).
+- `showtime/ShowtimePublicController.java`
+  (`/api/cinemas/{cinemaId}/showtimes`): `GET` với `date` bắt buộc,
+  `movieId` optional. `ShowtimeService.findByCinemaAndDate` convert
+  `LocalDate` → khoảng `[00:00, +1 ngày)` theo `ZoneId.of("Asia/Ho_Chi_Minh")`
+  cố định (rạp thuộc VN, không phụ thuộc timezone server), rồi gọi 1
+  trong 2 derived query mới của `ShowtimeRepository`
+  (`findByRoom_Cinema_IdAndStartTimeBetween` hoặc thêm `Movie_Id` khi có
+  `movieId`).
+- `showtime/ShowtimeSeatController.java` (`/api/showtimes`): `GET
+  /{id}/seats` trả `ShowtimeSeatMapResponse` (DTO mới, gồm thông tin
+  suất chiếu + `List<ShowtimeSeatResponse>`). `ShowtimeService.getSeatMap`
+  lấy showtime, dùng lại `SeatRepository.findByRoomIdOrderByRowLabelAscColNumberAsc`
+  đã có (từ tính năng sinh sơ đồ ghế), tính giá từng ghế = `basePrice *
+  seatType.priceMultiplier` trong `ShowtimeMapper.toSeatMapResponse`
+  (method mới).
+
+**Quyết định kỹ thuật:**
+- Không tạo Service/Controller mới nếu response shape hiện có
+  (`MovieResponse`, `BrandResponse`, `CinemaResponse`, `ShowtimeResponse`)
+  đã đủ dùng — chỉ có sơ đồ ghế mới cần DTO riêng.
+- `Showtime` có 2 base path public khác nhau
+  (`/api/cinemas/{cinemaId}/showtimes` và `/api/showtimes/{id}/seats`) nên
+  tách thành 2 controller (`ShowtimePublicController`,
+  `ShowtimeSeatController`) thay vì gộp path tuyệt đối vào 1 class — giữ
+  đúng convention "1 controller = 1 `@RequestMapping` class-level" đang
+  dùng xuyên suốt dự án (Spring nối path method vào path class chứ
+  không override).
+- Package của controller mới đặt theo **resource trả về**, không theo
+  URL cha — đúng tiền lệ `SeatController` (`seat/` package dù URL thuộc
+  `/api/admin/rooms/{roomId}/seats`, nằm dưới `room`). Áp dụng: rạp-theo-hãng
+  vẫn là `cinema/CinemaPublicController` dù URL bắt đầu bằng
+  `/api/brands/...`.
+- Sơ đồ ghế theo suất chiếu **chưa có trạng thái còn trống/đã đặt** — chỉ
+  layout + giá. `Booking`/`BookingSeat` chưa có ở tầng Java (dù bảng đã
+  có sẵn từ V1), việc gắn trạng thái ghế thuộc "Luồng Booking", mục tiếp
+  theo trong checklist.
+- Không ép `date` mặc định "hôm nay" ở backend cho
+  `/api/cinemas/{cinemaId}/showtimes` — để FE tự truyền theo UX doc, giữ
+  API tường minh. Không chặn `limit` âm ở `/api/movies/featured` — nhất
+  quán với mức validate tối thiểu đã áp dụng cho toàn bộ CRUD trước đó.
+
+**Test:** 5 file test controller mới (`MoviePublicControllerTest`,
+`BrandPublicControllerTest`, `CinemaPublicControllerTest`,
+`ShowtimePublicControllerTest`, `ShowtimeSeatControllerTest`, đều
+`@WebMvcTest` + Mockito `@MockBean` như các controller khác). Thêm case
+vào `MovieServiceTest` (`search` theo `q`/theo `status`/không lọc gì,
+`findFeatured`), `CinemaServiceTest` (`findByBrand` thành công + brand
+không tồn tại), `ShowtimeServiceTest` (`findByCinemaAndDate` có/không
+`movieId` + cinema không tồn tại, `getSeatMap` tính đúng giá + showtime
+không tồn tại — thêm mock `CinemaRepository`, `SeatRepository`). Tổng
+`mvn test`: 109 test, 0 fail/error, `BUILD SUCCESS`.
 
 **Trạng thái:** chưa commit.
 

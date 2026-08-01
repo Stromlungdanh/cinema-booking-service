@@ -9,4 +9,10 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
     // Derived query method: Spring Data tu sinh SQL tu ten method, khong can viet @Query.
     // Se dung o man hinh public "phim dang chieu / sap chieu".
     List<Movie> findByStatus(MovieStatus status);
+
+    // Man hinh public: o tim kiem phim/rap.
+    List<Movie> findByTitleContainingIgnoreCase(String title);
+
+    // Man hinh public: "phim noi bat" - bang xep hang theo luot xem.
+    List<Movie> findByOrderByViewCountDesc();
 }

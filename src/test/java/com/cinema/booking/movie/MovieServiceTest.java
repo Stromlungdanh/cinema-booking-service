@@ -196,4 +196,54 @@ class MovieServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> movieService.delete(404L));
     }
+
+    @Test
+    void search_byQ_usesTitleSearchRegardlessOfStatus() {
+        Movie found = new Movie();
+        found.setId(1L);
+        found.setTitle("Avatar 3");
+        when(movieRepository.findByTitleContainingIgnoreCase("avatar")).thenReturn(List.of(found));
+
+        List<MovieResponse> response = movieService.search(MovieStatus.NOW_SHOWING, "avatar");
+
+        assertEquals(1, response.size());
+        assertEquals("Avatar 3", response.get(0).title());
+    }
+
+    @Test
+    void search_byStatus_whenQBlank() {
+        Movie found = new Movie();
+        found.setId(1L);
+        found.setTitle("Avatar 3");
+        when(movieRepository.findByStatus(MovieStatus.NOW_SHOWING)).thenReturn(List.of(found));
+
+        List<MovieResponse> response = movieService.search(MovieStatus.NOW_SHOWING, null);
+
+        assertEquals(1, response.size());
+    }
+
+    @Test
+    void search_returnsAllWhenNoFilter() {
+        when(movieRepository.findAll()).thenReturn(List.of());
+
+        List<MovieResponse> response = movieService.search(null, null);
+
+        assertTrue(response.isEmpty());
+    }
+
+    @Test
+    void findFeatured_limitsToRequestedSize() {
+        Movie first = new Movie();
+        first.setId(1L);
+        first.setTitle("Top 1");
+        Movie second = new Movie();
+        second.setId(2L);
+        second.setTitle("Top 2");
+        when(movieRepository.findByOrderByViewCountDesc()).thenReturn(List.of(first, second));
+
+        List<MovieResponse> response = movieService.findFeatured(1);
+
+        assertEquals(1, response.size());
+        assertEquals("Top 1", response.get(0).title());
+    }
 }

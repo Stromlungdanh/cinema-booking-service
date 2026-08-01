@@ -37,6 +37,14 @@ public class CinemaService {
         return CinemaMapper.toResponse(getCinemaOrThrow(id));
     }
 
+    @Transactional(readOnly = true)
+    public List<CinemaResponse> findByBrand(Long brandId) {
+        getBrandOrThrow(brandId);
+        return cinemaRepository.findByBrandId(brandId).stream()
+                .map(CinemaMapper::toResponse)
+                .toList();
+    }
+
     @Transactional
     public CinemaResponse update(Long id, CinemaRequest request) {
         Cinema cinema = getCinemaOrThrow(id);

@@ -12,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -108,5 +109,27 @@ class CinemaServiceTest {
         when(cinemaRepository.findById(404L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> cinemaService.delete(404L));
+    }
+
+    @Test
+    void findByBrand_returnsCinemasOfBrand() {
+        Cinema cinema = new Cinema();
+        cinema.setId(1L);
+        cinema.setBrand(brand(1L, "BHD Star"));
+        cinema.setName("BHD Star Bitexco");
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(brand(1L, "BHD Star")));
+        when(cinemaRepository.findByBrandId(1L)).thenReturn(List.of(cinema));
+
+        var response = cinemaService.findByBrand(1L);
+
+        assertEquals(1, response.size());
+        assertEquals("BHD Star Bitexco", response.get(0).name());
+    }
+
+    @Test
+    void findByBrand_throwsWhenBrandNotFound() {
+        when(brandRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> cinemaService.findByBrand(99L));
     }
 }

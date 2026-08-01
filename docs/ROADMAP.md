@@ -104,7 +104,7 @@ Checklist:
 - [x] CRUD Room (thuộc 1 cinema)
 - [x] CRUD SeatType + sinh Seat theo sơ đồ phòng
 - [x] CRUD Showtime (gắn Movie + Room + khung giờ)
-- [ ] API public cho User: danh sách phim nổi bật/đang chiếu/sắp chiếu, chi tiết phim, danh sách rạp theo hãng, suất chiếu theo rạp/ngày, sơ đồ ghế theo suất chiếu
+- [x] API public cho User: danh sách phim nổi bật/đang chiếu/sắp chiếu, chi tiết phim, danh sách rạp theo hãng, suất chiếu theo rạp/ngày, sơ đồ ghế theo suất chiếu
 - [ ] Luồng Booking (tạo booking từ ghế đã chọn, tính tiền, trạng thái PENDING/PAID/CANCELLED/EXPIRED)
 - [ ] Payment giả lập (bypass, sinh `idempotency_key`) + sinh ticket/QR
 - [ ] Spring Security + JWT (login thường), phân quyền `hasRole("ADMIN")` cho các controller admin
@@ -144,18 +144,23 @@ ghế mà có API "sinh theo sơ đồ phòng" (`POST/GET
 /api/admin/rooms/{roomId}/seats`) — ghi đè toàn bộ ghế của 1 phòng theo
 danh sách hàng (nhãn hàng + số cột + loại ghế). Đã có thêm CRUD
 `Showtime` (`/api/admin/showtimes`, gắn Movie + Room + khung giờ + giá
-vé cơ bản). `mvn test` pass (88 test).
+vé cơ bản). Đã có API public cho User dưới `/api/...` (tách khỏi
+`/api/admin/...`): `/api/movies` (lọc status/tìm kiếm, `/featured`, chi
+tiết), `/api/brands`, `/api/brands/{brandId}/cinemas`,
+`/api/cinemas/{cinemaId}/showtimes` (theo ngày, lọc thêm theo phim), và
+`/api/showtimes/{id}/seats` (sơ đồ ghế + giá, chưa có trạng thái còn
+trống/đã đặt vì Booking chưa làm). `mvn test` pass (109 test).
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).
 
 ## 7. Sắp tới làm gì (ngay tiếp theo)
 
-Toàn bộ entity tĩnh + Showtime của Giai đoạn 1 đã xong (Movie/Genre/Actor
-+ quan hệ, Brand/Cinema/Room/SeatType/Seat, Showtime). Việc tiếp theo:
-**API public cho User** (danh sách phim nổi bật/đang chiếu/sắp chiếu,
-chi tiết phim, danh sách rạp theo hãng, suất chiếu theo rạp/ngày, sơ đồ
-ghế theo suất chiếu) — đây là bước cuối trước khi vào luồng Booking.
+Toàn bộ entity tĩnh + Showtime + API public cho User của Giai đoạn 1 đã
+xong. Việc tiếp theo: **Luồng Booking** (tạo booking từ ghế đã chọn,
+tính tiền, trạng thái PENDING/PAID/CANCELLED/EXPIRED) — lúc này sơ đồ
+ghế (`/api/showtimes/{id}/seats`) mới có trạng thái còn trống/đã đặt
+thay vì chỉ layout + giá như hiện tại.
 
 ## 8. Quy ước cập nhật tài liệu này
 

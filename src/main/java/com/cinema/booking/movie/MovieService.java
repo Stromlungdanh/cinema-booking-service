@@ -51,6 +51,30 @@ public class MovieService {
         return MovieMapper.toResponse(getMovieOrThrow(id));
     }
 
+    // Man hinh public: q uu tien hon status vi thanh tim kiem va tab
+    // dang-chieu/sap-chieu khong dung cung luc tren UI. Khong truyen gi ->
+    // tra toan bo phim.
+    @Transactional(readOnly = true)
+    public List<MovieResponse> search(MovieStatus status, String q) {
+        List<Movie> movies;
+        if (q != null && !q.isBlank()) {
+            movies = movieRepository.findByTitleContainingIgnoreCase(q);
+        } else if (status != null) {
+            movies = movieRepository.findByStatus(status);
+        } else {
+            movies = movieRepository.findAll();
+        }
+        return movies.stream().map(MovieMapper::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<MovieResponse> findFeatured(int limit) {
+        return movieRepository.findByOrderByViewCountDesc().stream()
+                .limit(limit)
+                .map(MovieMapper::toResponse)
+                .toList();
+    }
+
     @Transactional
     public MovieResponse update(Long id, MovieRequest request) {
         Movie movie = getMovieOrThrow(id);

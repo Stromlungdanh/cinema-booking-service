@@ -1,12 +1,17 @@
 package com.cinema.booking.showtime;
 
+import com.cinema.booking.cinema.CinemaRepository;
 import com.cinema.booking.common.exception.ResourceNotFoundException;
 import com.cinema.booking.movie.Movie;
 import com.cinema.booking.movie.MovieRepository;
 import com.cinema.booking.room.Room;
 import com.cinema.booking.room.RoomRepository;
+import com.cinema.booking.seat.Seat;
+import com.cinema.booking.seat.SeatRepository;
+import com.cinema.booking.seattype.SeatType;
 import com.cinema.booking.showtime.dto.ShowtimeRequest;
 import com.cinema.booking.showtime.dto.ShowtimeResponse;
+import com.cinema.booking.showtime.dto.ShowtimeSeatMapResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -15,7 +20,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,6 +43,12 @@ class ShowtimeServiceTest {
     @Mock
     private RoomRepository roomRepository;
 
+    @Mock
+    private CinemaRepository cinemaRepository;
+
+    @Mock
+    private SeatRepository seatRepository;
+
     @InjectMocks
     private ShowtimeService showtimeService;
 
@@ -51,6 +64,23 @@ class ShowtimeServiceTest {
         room.setId(id);
         room.setName(name);
         return room;
+    }
+
+    private SeatType seatType(long id, String name, String priceMultiplier) {
+        SeatType seatType = new SeatType();
+        seatType.setId(id);
+        seatType.setName(name);
+        seatType.setPriceMultiplier(new BigDecimal(priceMultiplier));
+        return seatType;
+    }
+
+    private Seat seat(long id, String rowLabel, int colNumber, SeatType seatType) {
+        Seat seat = new Seat();
+        seat.setId(id);
+        seat.setRowLabel(rowLabel);
+        seat.setColNumber(colNumber);
+        seat.setSeatType(seatType);
+        return seat;
     }
 
     private ShowtimeRequest sampleRequest() {
@@ -151,5 +181,69 @@ class ShowtimeServiceTest {
         when(showtimeRepository.findById(404L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> showtimeService.delete(404L));
+    }
+
+    @Test
+    void findByCinemaAndDate_withoutMovieId_queriesByCinemaAndDateRangeOnly() {
+        Showtime showtime = new Showtime();
+        showtime.setId(1L);
+        showtime.setMovie(movie(1L, "Avengers"));
+        showtime.setRoom(room(1L, "Phong 1"));
+        showtime.setStartTime(OffsetDateTime.parse("2026-08-01T10:00:00+07:00"));
+        showtime.setEndTime(OffsetDateTime.parse("2026-08-01T12:00:00+07:00"));
+        showtime.setBasePrice(new BigDecimal("90000"));
+        when(cinemaRepository.existsById(1L)).thenReturn(true);
+        when(showtimeRepository.findByRoom_Cinema_IdAndStartTimeBetween(any(), any(), any()))
+                .thenReturn(List.of(showtime));
+
+        List<ShowtimeResponse> response = showtimeService.findByCinemaAndDate(1L, LocalDate.of(2026, 8, 1), null);
+
+        assertEquals(1, response.size());
+        assertEquals("Avengers", response.get(0).movieTitle());
+    }
+
+    @Test
+    void findByCinemaAndDate_withMovieId_queriesByCinemaMovieAndDateRange() {
+        when(cinemaRepository.existsById(1L)).thenReturn(true);
+        when(showtimeRepository.findByRoom_Cinema_IdAndMovie_IdAndStartTimeBetween(any(), any(), any(), any()))
+                .thenReturn(List.of());
+
+        List<ShowtimeResponse> response = showtimeService.findByCinemaAndDate(1L, LocalDate.of(2026, 8, 1), 1L);
+
+        assertEquals(0, response.size());
+        verify(showtimeRepository).findByRoom_Cinema_IdAndMovie_IdAndStartTimeBetween(any(), any(), any(), any());
+    }
+
+    @Test
+    void findByCinemaAndDate_throwsWhenCinemaNotFound() {
+        when(cinemaRepository.existsById(99L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> showtimeService.findByCinemaAndDate(99L, LocalDate.of(2026, 8, 1), null));
+    }
+
+    @Test
+    void getSeatMap_computesPriceFromBasePriceAndSeatTypeMultiplier() {
+        Showtime showtime = new Showtime();
+        showtime.setId(1L);
+        showtime.setMovie(movie(1L, "Avengers"));
+        showtime.setRoom(room(1L, "Phong 1"));
+        showtime.setBasePrice(new BigDecimal("90000"));
+        when(showtimeRepository.findById(1L)).thenReturn(Optional.of(showtime));
+        when(seatRepository.findByRoomIdOrderByRowLabelAscColNumberAsc(1L))
+                .thenReturn(List.of(seat(1L, "A", 1, seatType(1L, "VIP", "1.50"))));
+
+        ShowtimeSeatMapResponse response = showtimeService.getSeatMap(1L);
+
+        assertEquals(1, response.seats().size());
+        assertEquals(0, new BigDecimal("135000.00").compareTo(response.seats().get(0).price()));
+        assertEquals("VIP", response.seats().get(0).seatTypeName());
+    }
+
+    @Test
+    void getSeatMap_throwsWhenShowtimeNotFound() {
+        when(showtimeRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> showtimeService.getSeatMap(99L));
     }
 }

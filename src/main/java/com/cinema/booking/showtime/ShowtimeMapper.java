@@ -2,8 +2,13 @@ package com.cinema.booking.showtime;
 
 import com.cinema.booking.movie.Movie;
 import com.cinema.booking.room.Room;
+import com.cinema.booking.seat.Seat;
 import com.cinema.booking.showtime.dto.ShowtimeRequest;
 import com.cinema.booking.showtime.dto.ShowtimeResponse;
+import com.cinema.booking.showtime.dto.ShowtimeSeatMapResponse;
+import com.cinema.booking.showtime.dto.ShowtimeSeatResponse;
+
+import java.util.List;
 
 public final class ShowtimeMapper {
 
@@ -34,6 +39,30 @@ public final class ShowtimeMapper {
                 showtime.getStartTime(),
                 showtime.getEndTime(),
                 showtime.getBasePrice()
+        );
+    }
+
+    public static ShowtimeSeatMapResponse toSeatMapResponse(Showtime showtime, List<Seat> seats) {
+        List<ShowtimeSeatResponse> seatResponses = seats.stream()
+                .map(seat -> new ShowtimeSeatResponse(
+                        seat.getId(),
+                        seat.getRowLabel(),
+                        seat.getColNumber(),
+                        seat.getSeatType().getId(),
+                        seat.getSeatType().getName(),
+                        showtime.getBasePrice().multiply(seat.getSeatType().getPriceMultiplier())
+                ))
+                .toList();
+        return new ShowtimeSeatMapResponse(
+                showtime.getId(),
+                showtime.getMovie().getId(),
+                showtime.getMovie().getTitle(),
+                showtime.getRoom().getId(),
+                showtime.getRoom().getName(),
+                showtime.getStartTime(),
+                showtime.getEndTime(),
+                showtime.getBasePrice(),
+                seatResponses
         );
     }
 }
