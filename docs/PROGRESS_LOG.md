@@ -428,7 +428,7 @@ khi thiếu `movieId`/`roomId`, `findById` 404, update, delete). Tổng
 theo IntelliJ Community 2025.2.6,
 `plugins/maven/lib/maven3/bin`).
 
-**Trạng thái:** chưa commit.
+**Trạng thái:** đã commit (`1e8119e`).
 
 </details>
 
@@ -507,7 +507,7 @@ không tồn tại), `ShowtimeServiceTest` (`findByCinemaAndDate` có/không
 không tồn tại — thêm mock `CinemaRepository`, `SeatRepository`). Tổng
 `mvn test`: 109 test, 0 fail/error, `BUILD SUCCESS`.
 
-**Trạng thái:** chưa commit.
+**Trạng thái:** đã commit (`1e8119e`).
 
 </details>
 
@@ -570,9 +570,7 @@ brand, 2 rap, 2 phong, 80 ghe, 6 phim, 6 the loai, 6 dien vien, 6 suat
 chieu) - khong dung toi `mvn test` (khong co test moi o muc Java, day la
 migration SQL + file JSON tinh).
 
-**Trạng thái:** chưa commit. App dang duoc de chay (`mvn spring-boot:run`,
-PID rieng, tach khoi shell session) de nguoi dung import Postman collection
-va test ngay.
+**Trạng thái:** đã commit (`1e8119e`).
 
 </details>
 
@@ -658,7 +656,7 @@ công khi `PENDING` + ném lỗi khi không phải `PENDING`.
 (`201/200/404/409`, validate `400` khi `seatIds` rỗng). Tổng `mvn test`:
 126 test, 0 fail/error, `BUILD SUCCESS`.
 
-**Trạng thái:** chưa commit.
+**Trạng thái:** đã commit (`1e8119e`).
 
 </details>
 
