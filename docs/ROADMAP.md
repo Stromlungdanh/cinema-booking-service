@@ -105,7 +105,7 @@ Checklist:
 - [x] CRUD SeatType + sinh Seat theo sơ đồ phòng
 - [x] CRUD Showtime (gắn Movie + Room + khung giờ)
 - [x] API public cho User: danh sách phim nổi bật/đang chiếu/sắp chiếu, chi tiết phim, danh sách rạp theo hãng, suất chiếu theo rạp/ngày, sơ đồ ghế theo suất chiếu
-- [ ] Luồng Booking (tạo booking từ ghế đã chọn, tính tiền, trạng thái PENDING/PAID/CANCELLED/EXPIRED)
+- [x] Luồng Booking (tạo booking từ ghế đã chọn, tính tiền, trạng thái PENDING/PAID/CANCELLED/EXPIRED)
 - [ ] Payment giả lập (bypass, sinh `idempotency_key`) + sinh ticket/QR
 - [ ] Spring Security + JWT (login thường), phân quyền `hasRole("ADMIN")` cho các controller admin
 - [ ] Login Google / SSO
@@ -148,19 +148,22 @@ vé cơ bản). Đã có API public cho User dưới `/api/...` (tách khỏi
 `/api/admin/...`): `/api/movies` (lọc status/tìm kiếm, `/featured`, chi
 tiết), `/api/brands`, `/api/brands/{brandId}/cinemas`,
 `/api/cinemas/{cinemaId}/showtimes` (theo ngày, lọc thêm theo phim), và
-`/api/showtimes/{id}/seats` (sơ đồ ghế + giá, chưa có trạng thái còn
-trống/đã đặt vì Booking chưa làm). `mvn test` pass (109 test).
+`/api/showtimes/{id}/seats` (sơ đồ ghế + giá). Đã có Luồng Booking
+(`/api/bookings`): tạo booking từ ghế đã chọn (tính giá + check trùng
+ghế app-level), xem chi tiết, lịch sử theo user, huỷ booking — kèm
+entity `User` tối thiểu (chưa CRUD/JWT) chỉ để làm FK cho `Booking`.
+`mvn test` pass (126 test).
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).
 
 ## 7. Sắp tới làm gì (ngay tiếp theo)
 
-Toàn bộ entity tĩnh + Showtime + API public cho User của Giai đoạn 1 đã
-xong. Việc tiếp theo: **Luồng Booking** (tạo booking từ ghế đã chọn,
-tính tiền, trạng thái PENDING/PAID/CANCELLED/EXPIRED) — lúc này sơ đồ
-ghế (`/api/showtimes/{id}/seats`) mới có trạng thái còn trống/đã đặt
-thay vì chỉ layout + giá như hiện tại.
+Luồng Booking đã xong (tạo/xem/lịch sử/huỷ). Việc tiếp theo: **Payment
+giả lập** (bypass, sinh `idempotency_key`, chuyển booking từ `PENDING`
+→ `PAID`) + sinh ticket/QR. Sau đó tới Spring Security + JWT (lúc này
+mới thay được cách truyền `userId` trực tiếp trong `BookingRequest`
+bằng lấy từ JWT principal).
 
 ## 8. Quy ước cập nhật tài liệu này
 

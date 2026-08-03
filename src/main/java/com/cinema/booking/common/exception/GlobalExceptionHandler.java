@@ -22,6 +22,12 @@ public class GlobalExceptionHandler {
                 .body(ApiError.of(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
     }
 
+    @ExceptionHandler(BookingConflictException.class)
+    public ResponseEntity<ApiError> handleBookingConflict(BookingConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiError.of(HttpStatus.CONFLICT.value(), ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();

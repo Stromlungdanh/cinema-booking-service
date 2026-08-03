@@ -30,6 +30,9 @@ timeline
     section 2026-08-01 — Showtime
         CRUD Showtime : gan Movie + Room : test (88 test)
         API public cho User : movies/brands/cinemas/showtimes/seat-map : test (109 test)
+        Seed data test (V3) + Postman collection : 52 request, chain qua bien
+    section 2026-08-03 — Luong Booking
+        CRUD-nho Booking : User entity toi thieu : create/get/history/cancel : check trung ghe app-level : test (126 test)
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -503,6 +506,157 @@ không tồn tại), `ShowtimeServiceTest` (`findByCinemaAndDate` có/không
 `movieId` + cinema không tồn tại, `getSeatMap` tính đúng giá + showtime
 không tồn tại — thêm mock `CinemaRepository`, `SeatRepository`). Tổng
 `mvn test`: 109 test, 0 fail/error, `BUILD SUCCESS`.
+
+**Trạng thái:** chưa commit.
+
+</details>
+
+<details>
+<summary><strong>2026-08-01 — Seed du lieu test (V3) + Postman collection</strong> — cong cu ho tro test thu cong, khong thuoc checklist Giai doan 1</summary>
+
+**Mục đích:** can du lieu that de test toan bo API (admin + public) bang
+Postman thay vi phai tu tay tao qua Swagger tung buoc. Khong thuoc 1 muc
+checklist cu the trong `ROADMAP.md` - la cong cu ho tro phat trien.
+
+**Đã làm:**
+- `src/main/resources/db/migration/V3__seed_test_data.sql` - migration
+  Flyway moi (**khong sua V2** - V2 da duoc apply va ghi checksum vao
+  `flyway_schema_history` cua DB local dang chay, sua se lam Flyway bao
+  loi checksum mismatch lan chay tiep theo). Seed: 2 brand (CGV, BHD),
+  moi brand 1 rap + 1 phong (40 ghe/phong, sinh bang `generate_series`
+  giong cach `SeatService.generateLayout` sinh o tang ung dung), 6 the
+  loai, 6 dien vien, 6 phim (3 NOW_SHOWING, 2 COMING_SOON, 1 ENDED, co
+  `movie_genres`/`movie_actors`), 6 suat chieu (hom nay + ngay mai, gio
+  VN co dinh qua `AT TIME ZONE 'Asia/Ho_Chi_Minh'` giong cach
+  `ShowtimeService` dang lam). Insert dung subquery theo ten (natural
+  key) thay vi hardcode id.
+- `postman/cinema-booking-service.postman_collection.json` - collection
+  Postman v2.1, 15 folder / 52 request, gom toan bo API: `Health`,
+  `Admin - {Genre, Actor, Brand, Cinema, Room, SeatType, Seat (layout),
+  Movie, Showtime}` (CRUD day du), `Public - {Movie, Brand, Cinema,
+  Showtime, Seat Map}` (chi doc).
+
+**Quyết định kỹ thuật:**
+- Phat hien khi test that: Postgres IDENTITY sequence **khong roll back**
+  khi 1 transaction chua no bi rollback (kieu ca 1 lan migration that bai
+  giua chung o lan chay dau, va 1 lan dry-run qua `psql BEGIN;...;ROLLBACK;`
+  de kiem tra cu phap) - nen id thuc te sau khi seed **khong dam bao bat
+  dau tu 1** (thuc te: brand id 5/6, movie id 8-13...). Vi vay Postman
+  collection **khong hardcode id nao ca** - moi request `List ...` (dau
+  moi folder) co Tests script luu id dau tien vao 1 collection variable
+  (VD `{{movieId}}`, `{{cinemaId}}`), cac request sau dung lai bien do.
+  Day cung la thuc hanh chuan cua Postman cho collection co quan he cha-con.
+- Moi folder Admin CRUD tu tao 1 ban ghi demo rieng (`Create` luu
+  `{{createdXxxId}}`) de test Update/Delete, **khong dung/xoa du lieu
+  seed** - vi vay Public folder luon co du lieu de demo ma khong can seed
+  lai. Rieng "Generate Seat Layout" dung `{{createdRoomId}}` (phong demo)
+  chu khong dung `{{roomId}}` (phong seed) vi request nay ghi de toan bo
+  ghe cua phong - dung nham phong seed se pha layout 40 ghe dang dung o
+  Public - Seat Map.
+- Collection co pre-request script o muc collection tu sinh
+  `{{today}}` (ngay hien tai, dung cho query `date` cua
+  `/api/cinemas/{cinemaId}/showtimes` va body tao Showtime) - khong can
+  nguoi dung tu dien tay.
+
+**Test:** khong co Newman/CLI Postman tren may (chi co the validate cu
+phap JSON qua `node -e "require(...)"`). Da smoke-test thu cong qua
+`curl` toan bo chuoi phu thuoc quan trong cua collection (Genre CRUD day
+du; Cinema→Room→SeatType→Generate Seat Layout; Movie voi
+`genreIds`/`cast`; Showtime voi `{{today}}`) truc tiep tren app dang
+chay that (`mvn spring-boot:run`, Postgres tu docker-compose) - deu tra
+dung status code va du lieu ky vong. Da xoa cac ban ghi demo tao ra
+trong luc smoke-test, xac nhan lai row count khop dung du lieu seed (2
+brand, 2 rap, 2 phong, 80 ghe, 6 phim, 6 the loai, 6 dien vien, 6 suat
+chieu) - khong dung toi `mvn test` (khong co test moi o muc Java, day la
+migration SQL + file JSON tinh).
+
+**Trạng thái:** chưa commit. App dang duoc de chay (`mvn spring-boot:run`,
+PID rieng, tach khoi shell session) de nguoi dung import Postman collection
+va test ngay.
+
+</details>
+
+<details>
+<summary><strong>2026-08-03 — Luồng Booking (<code>/api/bookings</code>)</strong> — tạo booking từ ghế đã chọn, tính tiền, quản lý trạng thái PENDING/PAID/CANCELLED/EXPIRED</summary>
+
+**Mục đích:** mục tiếp theo trong checklist Giai đoạn 1 sau khi toàn bộ
+entity tĩnh + Showtime + API public đọc dữ liệu đã xong — nối
+`Showtime`/`Seat` với `Payment giả lập` (bước kế tiếp). Đây cũng là lần
+đầu tiên `bookings`/`booking_seats`/`users` (có sẵn từ V1) có entity
+Java.
+
+**Đã làm:**
+- `user/User.java` + `user/UserRepository.java` — entity **tối thiểu**
+  map bảng `users` (`name, email, passwordHash, provider, providerId,
+  role, createdAt`), chỉ đủ để `Booking` có `@ManyToOne User` hợp lệ.
+  Cố tình **không** làm Service/Controller/DTO — CRUD/JWT thật sẽ làm
+  ở mục checklist riêng "Spring Security + JWT" (sau Booking).
+- `booking/BookingStatus.java` — enum `PENDING/PAID/CANCELLED/EXPIRED`,
+  map `@Enumerated(EnumType.STRING)` giống `MovieStatus`.
+- `booking/Booking.java` — `@ManyToOne User`, `@ManyToOne Showtime`,
+  `status` (mặc định `PENDING`), `totalPrice`, `createdAt` (set =
+  `OffsetDateTime.now()` ở tầng Java lúc tạo, không dựa DB default để
+  khỏi phải reload entity sau insert). `seats` —
+  `@OneToMany(mappedBy = "booking", cascade = ALL, orphanRemoval =
+  true)`, đúng pattern `Movie.cast`.
+- `booking/BookingSeat.java` — map `booking_seats`, có `id` riêng
+  (khác `MovieCast` — bảng này đã có sẵn cột `id` IDENTITY nên không
+  cần `@EmbeddedId`). `price` là **snapshot giá tại thời điểm đặt**
+  (đúng ghi chú đã có trong `docs/ERD.md`), không tính lại từ
+  `basePrice` khi truy vấn sau này.
+- `booking/BookingRepository.java` (+ `findByUserIdOrderByCreatedAtDesc`
+  cho lịch sử đặt vé), `booking/BookingSeatRepository.java` — 1 JPQL
+  query `findBookedSeatIds` join thẳng `booking.showtime`/
+  `booking.status` để check trùng ghế mà không load nguyên `Booking`
+  graph.
+- `booking/dto/{BookingRequest, BookingSeatResponse, BookingResponse}` —
+  `BookingRequest` nhận `userId` trực tiếp trong body (chưa có JWT nên
+  chưa có "current user"), `seatIds` (`@NotEmpty`). `BookingResponse`
+  phẳng hoá `movieTitle`/`roomName`/`startTime` từ showtime, đúng style
+  `ShowtimeResponse`.
+- `booking/BookingMapper.java` — tĩnh, tái dùng đúng công thức tính giá
+  ghế đã có ở `ShowtimeMapper.toSeatMapResponse`
+  (`basePrice x seatType.priceMultiplier`).
+- `booking/BookingService.java`:
+  - `create`: resolve `User`/`Showtime` → resolve + validate từng
+    `seatId` thuộc đúng phòng của showtime (`ResourceNotFoundException`
+    nếu không) → check trùng ghế qua `findBookedSeatIds` với trạng
+    thái `[PENDING, PAID]` (ném `BookingConflictException` nếu trùng)
+    → tính giá từng ghế + tổng tiền → save (cascade lo `booking_seats`).
+  - `findById`, `findByUser` (validate user tồn tại), `cancel` (chỉ
+    cho phép khi `status == PENDING`, không gọi `save()` — managed
+    entity, dirty checking, đúng quyết định đã áp dụng ở
+    `MovieService.update`).
+- `booking/BookingController.java` (`/api/bookings`): `POST` (201),
+  `GET /{id}`, `GET ?userId=` (lịch sử — dùng query param thay vì path
+  riêng, giống cách `MoviePublicController` dùng `status`/`q`),
+  `PATCH /{id}/cancel`.
+- `common/exception/BookingConflictException.java` — exception mới,
+  thêm handler trong `GlobalExceptionHandler` → `409 CONFLICT`.
+
+**Quyết định kỹ thuật:**
+- Check trùng ghế làm ở **tầng Service** (app-level), không phải DB
+  constraint — bảng `booking_seats` chưa có partial unique index (để
+  dành Giai đoạn 2 khi làm lock/Redis seat-hold, xem
+  `docs/ERD.md` mục "Deferred constraints"). Cách này chặn được trường
+  hợp thường (không có 2 request đồng thời) nhưng **không** chống được
+  race condition thật — chấp nhận được vì đó là mục tiêu học riêng của
+  Giai đoạn 2, đã xác nhận với user trước khi code (AskUserQuestion).
+- Không tách admin/public cho `/api/bookings` — chưa có JWT nên chưa
+  phân biệt được người gọi API; sẽ khoá quyền khi làm Spring Security.
+- Không tự động chuyển `EXPIRED` (cần scheduled job dọn booking
+  `PENDING` quá hạn) — ngoài phạm vi checklist "Luồng Booking", để dành
+  khi có nhu cầu thật (có thể gộp cùng lúc với Giai đoạn 2).
+
+**Test:** `BookingServiceTest` (Mockito, mock đủ 5 repository liên
+quan): tạo booking tính đúng giá/tổng tiền, ném lỗi khi thiếu
+`userId`/`showtimeId`, ném lỗi khi ghế không thuộc phòng của showtime,
+ném `BookingConflictException` khi ghế đã bị đặt, `findById` 404,
+`findByUser` (user không tồn tại → 404, có kết quả), `cancel` thành
+công khi `PENDING` + ném lỗi khi không phải `PENDING`.
+`BookingControllerTest` (`@WebMvcTest`): status code cho từng endpoint
+(`201/200/404/409`, validate `400` khi `seatIds` rỗng). Tổng `mvn test`:
+126 test, 0 fail/error, `BUILD SUCCESS`.
 
 **Trạng thái:** chưa commit.
 

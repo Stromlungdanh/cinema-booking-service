@@ -1,0 +1,788 @@
+{
+  "info": {
+    "_postman_id": "b5c6a1f0-2b2a-4a7a-9a3a-cinema-booking-service",
+    "name": "Cinema Booking Service",
+    "description": "API test collection cho du an cinema-booking-service (Giai doan 1). Gom 2 nhom: 'Admin' (CRUD, thuong duoi /api/admin/...) va 'Public' (chi doc, duoi /api/...).\n\nCach dung:\n1. `docker compose up -d` (Postgres + Redis) roi chay app Spring Boot (`mvn spring-boot:run`).\n2. Migration `V3__seed_test_data.sql` tu dong seed san: 2 brand (CGV, BHD), moi brand 1 rap + 1 phong (40 ghe), 6 phim (3 NOW_SHOWING, 2 COMING_SOON, 1 ENDED), 6 the loai, 6 dien vien, 6 suat chieu (hom nay + ngay mai).\n3. Cac request 'List ...' (dau moi folder) tu dong luu id dau tien vao collection variable (VD `{{movieId}}`, `{{cinemaId}}`) qua Tests script - cac request phia sau trong cung folder hoac folder ke tiep dung lai bien do. Nen chay request 'List' truoc khi chay cac request can id.\n4. Moi folder Admin CRUD deu tao 1 ban ghi demo rieng (`{{createdXxxId}}`) de test Update/Delete - KHONG dung/xoa du lieu seed, de Public folder luon co du lieu ma khong can chay lai migration.\n5. ID thuc te phu thuoc IDENTITY sequence cua Postgres (khong chac chan bat dau tu 1, kieu ca khi rollback/loi migration cung lam tang sequence) - vi vay collection nay khong hardcode id, luon dua vao bien duoc capture o buoc List/Create.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Ngay hom nay (UTC, dang YYYY-MM-DD) - dung cho query param 'date' cua",
+          "// /api/cinemas/{cinemaId}/showtimes va body tao Showtime moi.",
+          "pm.collectionVariables.set('today', new Date().toISOString().slice(0, 10));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "today", "value": "", "type": "string" },
+    { "key": "genreId", "value": "", "type": "string" },
+    { "key": "createdGenreId", "value": "", "type": "string" },
+    { "key": "actorId", "value": "", "type": "string" },
+    { "key": "createdActorId", "value": "", "type": "string" },
+    { "key": "brandId", "value": "", "type": "string" },
+    { "key": "createdBrandId", "value": "", "type": "string" },
+    { "key": "cinemaId", "value": "", "type": "string" },
+    { "key": "createdCinemaId", "value": "", "type": "string" },
+    { "key": "roomId", "value": "", "type": "string" },
+    { "key": "createdRoomId", "value": "", "type": "string" },
+    { "key": "seatTypeId", "value": "", "type": "string" },
+    { "key": "createdSeatTypeId", "value": "", "type": "string" },
+    { "key": "movieId", "value": "", "type": "string" },
+    { "key": "createdMovieId", "value": "", "type": "string" },
+    { "key": "showtimeId", "value": "", "type": "string" },
+    { "key": "createdShowtimeId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Genre",
+      "description": "CRUD /api/admin/genres. 'List' luu id dau tien vao {{genreId}} (dung o Admin - Movie). 'Create'->'Get'->'Update'->'Delete' thao tac tren 1 ban ghi demo rieng ({{createdGenreId}}), khong dung ban ghi seed.",
+      "item": [
+        {
+          "name": "List Genres",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('genreId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/genres", "host": ["{{baseUrl}}"], "path": ["api", "admin", "genres"] }
+          }
+        },
+        {
+          "name": "Create Genre",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('createdGenreId', pm.response.json().id);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Demo Genre\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/genres", "host": ["{{baseUrl}}"], "path": ["api", "admin", "genres"] }
+          }
+        },
+        {
+          "name": "Get Genre By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/genres/{{createdGenreId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "genres", "{{createdGenreId}}"] }
+          }
+        },
+        {
+          "name": "Update Genre",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Demo Genre (Updated)\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/genres/{{createdGenreId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "genres", "{{createdGenreId}}"] }
+          }
+        },
+        {
+          "name": "Delete Genre",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/genres/{{createdGenreId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "genres", "{{createdGenreId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Actor",
+      "description": "CRUD /api/admin/actors. 'List' luu id dau tien vao {{actorId}} (dung o Admin - Movie).",
+      "item": [
+        {
+          "name": "List Actors",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('actorId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/actors", "host": ["{{baseUrl}}"], "path": ["api", "admin", "actors"] }
+          }
+        },
+        {
+          "name": "Create Actor",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('createdActorId', pm.response.json().id);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Demo Actor\",\n    \"avatarUrl\": \"https://picsum.photos/seed/demo-actor/200\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/actors", "host": ["{{baseUrl}}"], "path": ["api", "admin", "actors"] }
+          }
+        },
+        {
+          "name": "Get Actor By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/actors/{{createdActorId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "actors", "{{createdActorId}}"] }
+          }
+        },
+        {
+          "name": "Update Actor",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Demo Actor (Updated)\",\n    \"avatarUrl\": \"https://picsum.photos/seed/demo-actor/200\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/actors/{{createdActorId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "actors", "{{createdActorId}}"] }
+          }
+        },
+        {
+          "name": "Delete Actor",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/actors/{{createdActorId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "actors", "{{createdActorId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Brand",
+      "description": "CRUD /api/admin/brands. 'List' luu id dau tien vao {{brandId}} (dung o Admin - Cinema va ca Public - Cinema).",
+      "item": [
+        {
+          "name": "List Brands",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('brandId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/brands", "host": ["{{baseUrl}}"], "path": ["api", "admin", "brands"] }
+          }
+        },
+        {
+          "name": "Create Brand",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('createdBrandId', pm.response.json().id);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Demo Cinema Brand\",\n    \"logoUrl\": \"https://picsum.photos/seed/demo-brand/200\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/brands", "host": ["{{baseUrl}}"], "path": ["api", "admin", "brands"] }
+          }
+        },
+        {
+          "name": "Get Brand By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/brands/{{createdBrandId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "brands", "{{createdBrandId}}"] }
+          }
+        },
+        {
+          "name": "Update Brand",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Demo Cinema Brand (Updated)\",\n    \"logoUrl\": \"https://picsum.photos/seed/demo-brand/200\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/brands/{{createdBrandId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "brands", "{{createdBrandId}}"] }
+          }
+        },
+        {
+          "name": "Delete Brand",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/brands/{{createdBrandId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "brands", "{{createdBrandId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Cinema",
+      "description": "CRUD /api/admin/cinemas. Create dung {{brandId}} (hang da seed - chay Admin/Public - Brand truoc). 'List' luu id dau tien vao {{cinemaId}}.",
+      "item": [
+        {
+          "name": "List Cinemas",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('cinemaId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/cinemas", "host": ["{{baseUrl}}"], "path": ["api", "admin", "cinemas"] }
+          }
+        },
+        {
+          "name": "Create Cinema",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('createdCinemaId', pm.response.json().id);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"brandId\": {{brandId}},\n    \"name\": \"Demo Cinema\",\n    \"address\": \"123 Demo Street\",\n    \"city\": \"Ha Noi\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/cinemas", "host": ["{{baseUrl}}"], "path": ["api", "admin", "cinemas"] }
+          }
+        },
+        {
+          "name": "Get Cinema By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/cinemas/{{createdCinemaId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "cinemas", "{{createdCinemaId}}"] }
+          }
+        },
+        {
+          "name": "Update Cinema",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"brandId\": {{brandId}},\n    \"name\": \"Demo Cinema (Updated)\",\n    \"address\": \"123 Demo Street\",\n    \"city\": \"Ha Noi\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/cinemas/{{createdCinemaId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "cinemas", "{{createdCinemaId}}"] }
+          }
+        },
+        {
+          "name": "Delete Cinema",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/cinemas/{{createdCinemaId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "cinemas", "{{createdCinemaId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Room",
+      "description": "CRUD /api/admin/rooms. Create dung {{cinemaId}} (rap da seed). 'List' luu id dau tien vao {{roomId}} (phong da seed - dung o Public - Seat Map giao tiep gian tiep qua showtime, va Admin - Showtime).",
+      "item": [
+        {
+          "name": "List Rooms",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('roomId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/rooms", "host": ["{{baseUrl}}"], "path": ["api", "admin", "rooms"] }
+          }
+        },
+        {
+          "name": "Create Room",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('createdRoomId', pm.response.json().id);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"cinemaId\": {{cinemaId}},\n    \"name\": \"Demo Room\",\n    \"roomType\": \"3D\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/rooms", "host": ["{{baseUrl}}"], "path": ["api", "admin", "rooms"] }
+          }
+        },
+        {
+          "name": "Get Room By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/rooms/{{createdRoomId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "rooms", "{{createdRoomId}}"] }
+          }
+        },
+        {
+          "name": "Update Room",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"cinemaId\": {{cinemaId}},\n    \"name\": \"Demo Room (Updated)\",\n    \"roomType\": \"IMAX\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/rooms/{{createdRoomId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "rooms", "{{createdRoomId}}"] }
+          }
+        },
+        {
+          "name": "Delete Room",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/rooms/{{createdRoomId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "rooms", "{{createdRoomId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - SeatType",
+      "description": "CRUD /api/admin/seat-types. 'List' luu id dau tien vao {{seatTypeId}} (dung o Admin - Seat layout).",
+      "item": [
+        {
+          "name": "List Seat Types",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('seatTypeId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/seat-types", "host": ["{{baseUrl}}"], "path": ["api", "admin", "seat-types"] }
+          }
+        },
+        {
+          "name": "Create Seat Type",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('createdSeatTypeId', pm.response.json().id);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"DEMO_TYPE\",\n    \"priceMultiplier\": 1.25\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/seat-types", "host": ["{{baseUrl}}"], "path": ["api", "admin", "seat-types"] }
+          }
+        },
+        {
+          "name": "Get Seat Type By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/seat-types/{{createdSeatTypeId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "seat-types", "{{createdSeatTypeId}}"] }
+          }
+        },
+        {
+          "name": "Update Seat Type",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"DEMO_TYPE_UPDATED\",\n    \"priceMultiplier\": 1.75\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/seat-types/{{createdSeatTypeId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "seat-types", "{{createdSeatTypeId}}"] }
+          }
+        },
+        {
+          "name": "Delete Seat Type",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/seat-types/{{createdSeatTypeId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "seat-types", "{{createdSeatTypeId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Seat (layout)",
+      "description": "Sinh/xem so do ghe theo phong: /api/admin/rooms/{roomId}/seats. Dung {{createdRoomId}} (phong demo tu Admin - Room) chu KHONG dung {{roomId}} (phong seed) - vi request nay GHI DE toan bo ghe cua phong, se pha so do 40 ghe da seed ma Public - Seat Map dang dung de demo.",
+      "item": [
+        {
+          "name": "Generate Seat Layout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"rows\": [\n        { \"rowLabel\": \"A\", \"columnCount\": 8, \"seatTypeId\": {{seatTypeId}} },\n        { \"rowLabel\": \"B\", \"columnCount\": 8, \"seatTypeId\": {{seatTypeId}} }\n    ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/rooms/{{createdRoomId}}/seats", "host": ["{{baseUrl}}"], "path": ["api", "admin", "rooms", "{{createdRoomId}}", "seats"] }
+          }
+        },
+        {
+          "name": "Get Seat Layout",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/rooms/{{createdRoomId}}/seats", "host": ["{{baseUrl}}"], "path": ["api", "admin", "rooms", "{{createdRoomId}}", "seats"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Movie",
+      "description": "CRUD /api/admin/movies. Create dung {{genreId}}/{{actorId}} (the loai/dien vien da seed - chay Admin - Genre va Admin - Actor 'List' truoc). 'List' luu id dau tien vao {{movieId}}.",
+      "item": [
+        {
+          "name": "List Movies",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('movieId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/movies", "host": ["{{baseUrl}}"], "path": ["api", "admin", "movies"] }
+          }
+        },
+        {
+          "name": "Create Movie",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('createdMovieId', pm.response.json().id);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"title\": \"Demo Movie\",\n    \"description\": \"Phim demo tao qua Postman\",\n    \"durationMin\": 120,\n    \"language\": \"English\",\n    \"releaseDate\": \"2026-09-01\",\n    \"posterUrl\": \"https://picsum.photos/seed/demo-movie/400/600\",\n    \"trailerUrl\": \"https://example.com/trailer/demo-movie\",\n    \"status\": \"COMING_SOON\",\n    \"genreIds\": [{{genreId}}],\n    \"cast\": [\n        { \"actorId\": {{actorId}}, \"roleName\": \"Demo Role\" }\n    ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/movies", "host": ["{{baseUrl}}"], "path": ["api", "admin", "movies"] }
+          }
+        },
+        {
+          "name": "Get Movie By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/movies/{{createdMovieId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "movies", "{{createdMovieId}}"] }
+          }
+        },
+        {
+          "name": "Update Movie",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"title\": \"Demo Movie (Updated)\",\n    \"description\": \"Phim demo da cap nhat\",\n    \"durationMin\": 130,\n    \"language\": \"English\",\n    \"releaseDate\": \"2026-09-01\",\n    \"posterUrl\": \"https://picsum.photos/seed/demo-movie/400/600\",\n    \"trailerUrl\": \"https://example.com/trailer/demo-movie\",\n    \"status\": \"NOW_SHOWING\",\n    \"genreIds\": [{{genreId}}],\n    \"cast\": [\n        { \"actorId\": {{actorId}}, \"roleName\": \"Demo Role (Updated)\" }\n    ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/movies/{{createdMovieId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "movies", "{{createdMovieId}}"] }
+          }
+        },
+        {
+          "name": "Delete Movie",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/movies/{{createdMovieId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "movies", "{{createdMovieId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Showtime",
+      "description": "CRUD /api/admin/showtimes. Create dung {{movieId}}/{{roomId}} (phim/phong da seed). 'List' luu id dau tien vao {{showtimeId}}.",
+      "item": [
+        {
+          "name": "List Showtimes",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('showtimeId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/showtimes", "host": ["{{baseUrl}}"], "path": ["api", "admin", "showtimes"] }
+          }
+        },
+        {
+          "name": "Create Showtime",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('createdShowtimeId', pm.response.json().id);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"movieId\": {{movieId}},\n    \"roomId\": {{roomId}},\n    \"startTime\": \"{{today}}T20:00:00+07:00\",\n    \"endTime\": \"{{today}}T22:00:00+07:00\",\n    \"basePrice\": 99000\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/showtimes", "host": ["{{baseUrl}}"], "path": ["api", "admin", "showtimes"] }
+          }
+        },
+        {
+          "name": "Get Showtime By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/showtimes/{{createdShowtimeId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "showtimes", "{{createdShowtimeId}}"] }
+          }
+        },
+        {
+          "name": "Update Showtime",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"movieId\": {{movieId}},\n    \"roomId\": {{roomId}},\n    \"startTime\": \"{{today}}T21:00:00+07:00\",\n    \"endTime\": \"{{today}}T23:00:00+07:00\",\n    \"basePrice\": 110000\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/showtimes/{{createdShowtimeId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "showtimes", "{{createdShowtimeId}}"] }
+          }
+        },
+        {
+          "name": "Delete Showtime",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/showtimes/{{createdShowtimeId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "showtimes", "{{createdShowtimeId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public - Movie",
+      "description": "/api/movies - man hinh trang chu phim + chi tiet phim. Doc-only, an toan chay bat ky luc nao.",
+      "item": [
+        {
+          "name": "List / Filter By Status (Now Showing)",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('movieId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/movies?status=NOW_SHOWING",
+              "host": ["{{baseUrl}}"], "path": ["api", "movies"],
+              "query": [{ "key": "status", "value": "NOW_SHOWING" }]
+            }
+          }
+        },
+        {
+          "name": "Search By Keyword",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/movies?q=Avengers",
+              "host": ["{{baseUrl}}"], "path": ["api", "movies"],
+              "query": [{ "key": "q", "value": "Avengers" }]
+            }
+          }
+        },
+        {
+          "name": "Featured (Top Viewed)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/movies/featured?limit=5",
+              "host": ["{{baseUrl}}"], "path": ["api", "movies", "featured"],
+              "query": [{ "key": "limit", "value": "5" }]
+            }
+          }
+        },
+        {
+          "name": "Movie Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/movies/{{movieId}}", "host": ["{{baseUrl}}"], "path": ["api", "movies", "{{movieId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public - Brand",
+      "description": "/api/brands - tab 'Chon rap', man hinh 1 (chon hang).",
+      "item": [
+        {
+          "name": "List Brands",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('brandId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/brands", "host": ["{{baseUrl}}"], "path": ["api", "brands"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public - Cinema",
+      "description": "/api/brands/{brandId}/cinemas - tab 'Chon rap', list rap thuoc 1 hang. Can {{brandId}} - chay 'Public - Brand > List Brands' truoc.",
+      "item": [
+        {
+          "name": "Cinemas By Brand",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('cinemaId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/brands/{{brandId}}/cinemas", "host": ["{{baseUrl}}"], "path": ["api", "brands", "{{brandId}}", "cinemas"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public - Showtime",
+      "description": "/api/cinemas/{cinemaId}/showtimes - man hinh 'Lich chieu cua rap' / 'Chon suat'. Can {{cinemaId}} - chay 'Public - Cinema' truoc. {{today}} tu dong sinh o pre-request script cua collection.",
+      "item": [
+        {
+          "name": "Showtimes By Cinema And Date",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('showtimeId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/cinemas/{{cinemaId}}/showtimes?date={{today}}",
+              "host": ["{{baseUrl}}"], "path": ["api", "cinemas", "{{cinemaId}}", "showtimes"],
+              "query": [{ "key": "date", "value": "{{today}}" }]
+            }
+          }
+        },
+        {
+          "name": "Showtimes By Cinema, Date And Movie",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/cinemas/{{cinemaId}}/showtimes?date={{today}}&movieId={{movieId}}",
+              "host": ["{{baseUrl}}"], "path": ["api", "cinemas", "{{cinemaId}}", "showtimes"],
+              "query": [
+                { "key": "date", "value": "{{today}}" },
+                { "key": "movieId", "value": "{{movieId}}" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public - Seat Map",
+      "description": "/api/showtimes/{id}/seats - man hinh 'Chon ghe'. Can {{showtimeId}} - chay 'Public - Showtime' truoc. Chua co trang thai con trong/da dat (Booking chua lam), chi co layout + gia tung ghe.",
+      "item": [
+        {
+          "name": "Seat Map For Showtime",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/showtimes/{{showtimeId}}/seats", "host": ["{{baseUrl}}"], "path": ["api", "showtimes", "{{showtimeId}}", "seats"] }
+          }
+        }
+      ]
+    }
+  ]
+}
