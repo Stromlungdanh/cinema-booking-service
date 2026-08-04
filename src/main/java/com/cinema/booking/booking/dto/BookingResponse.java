@@ -16,6 +16,7 @@ public record BookingResponse(
         BookingStatus status,
         BigDecimal totalPrice,
         OffsetDateTime createdAt,
+        String ticketCode,
         List<BookingSeatResponse> seats
 ) {
 }

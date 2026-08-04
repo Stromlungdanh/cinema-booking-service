@@ -106,7 +106,7 @@ Checklist:
 - [x] CRUD Showtime (gắn Movie + Room + khung giờ)
 - [x] API public cho User: danh sách phim nổi bật/đang chiếu/sắp chiếu, chi tiết phim, danh sách rạp theo hãng, suất chiếu theo rạp/ngày, sơ đồ ghế theo suất chiếu
 - [x] Luồng Booking (tạo booking từ ghế đã chọn, tính tiền, trạng thái PENDING/PAID/CANCELLED/EXPIRED)
-- [ ] Payment giả lập (bypass, sinh `idempotency_key`) + sinh ticket/QR
+- [x] Payment giả lập (bypass, sinh `idempotency_key`) + sinh ticket/QR
 - [ ] Spring Security + JWT (login thường), phân quyền `hasRole("ADMIN")` cho các controller admin
 - [ ] Login Google / SSO
 
@@ -152,18 +152,23 @@ tiết), `/api/brands`, `/api/brands/{brandId}/cinemas`,
 (`/api/bookings`): tạo booking từ ghế đã chọn (tính giá + check trùng
 ghế app-level), xem chi tiết, lịch sử theo user, huỷ booking — kèm
 entity `User` tối thiểu (chưa CRUD/JWT) chỉ để làm FK cho `Booking`.
-`mvn test` pass (126 test).
+Đã có Payment giả lập (`/api/payments`): bypass hoàn toàn (không gọi
+gateway thật), luôn trả `SUCCESS` ngay, dùng `idempotencyKey` do client
+tự sinh để chống thanh toán trùng khi gọi lại API (mạng lag, bấm 2
+lần), chuyển `Booking` từ `PENDING` → `PAID`, sinh `ticketCode` +
+QR code thật (PNG, thư viện ZXing) lấy qua `GET
+/api/bookings/{id}/ticket` (chỉ xem được khi đã `PAID`). `mvn test`
+pass (139 test).
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).
 
 ## 7. Sắp tới làm gì (ngay tiếp theo)
 
-Luồng Booking đã xong (tạo/xem/lịch sử/huỷ). Việc tiếp theo: **Payment
-giả lập** (bypass, sinh `idempotency_key`, chuyển booking từ `PENDING`
-→ `PAID`) + sinh ticket/QR. Sau đó tới Spring Security + JWT (lúc này
-mới thay được cách truyền `userId` trực tiếp trong `BookingRequest`
-bằng lấy từ JWT principal).
+Payment giả lập + ticket/QR đã xong. Việc tiếp theo: **Spring Security
++ JWT** (login thường), phân quyền `hasRole("ADMIN")` cho các
+controller admin — lúc này mới thay được cách truyền `userId` trực
+tiếp trong `BookingRequest` bằng lấy từ JWT principal.
 
 ## 8. Quy ước cập nhật tài liệu này
 

@@ -2,6 +2,7 @@ package com.cinema.booking.booking;
 
 import com.cinema.booking.booking.dto.BookingRequest;
 import com.cinema.booking.booking.dto.BookingResponse;
+import com.cinema.booking.booking.dto.TicketResponse;
 import com.cinema.booking.common.exception.BookingConflictException;
 import com.cinema.booking.common.exception.ResourceNotFoundException;
 import com.cinema.booking.movie.Movie;
@@ -242,5 +243,40 @@ class BookingServiceTest {
         when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
 
         assertThrows(BookingConflictException.class, () -> bookingService.cancel(1L));
+    }
+
+    @Test
+    void getTicket_returnsTicketWhenPaidWithTicketCode() {
+        Room room = room(1L, "Phong 1");
+        Showtime showtime = showtime(1L, room, "90000");
+        Booking booking = new Booking();
+        booking.setId(1L);
+        booking.setUser(user(1L));
+        booking.setShowtime(showtime);
+        booking.setStatus(BookingStatus.PAID);
+        booking.setTotalPrice(new BigDecimal("90000"));
+        booking.setTicketCode("CB-ABCD1234");
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+
+        TicketResponse ticket = bookingService.getTicket(1L);
+
+        assertEquals("CB-ABCD1234", ticket.ticketCode());
+        assertEquals(1L, ticket.bookingId());
+        assertEquals("Avengers", ticket.movieTitle());
+    }
+
+    @Test
+    void getTicket_throwsWhenBookingNotPaid() {
+        Room room = room(1L, "Phong 1");
+        Showtime showtime = showtime(1L, room, "90000");
+        Booking booking = new Booking();
+        booking.setId(1L);
+        booking.setUser(user(1L));
+        booking.setShowtime(showtime);
+        booking.setStatus(BookingStatus.PENDING);
+        booking.setTotalPrice(new BigDecimal("90000"));
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+
+        assertThrows(BookingConflictException.class, () -> bookingService.getTicket(1L));
     }
 }

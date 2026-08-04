@@ -2,6 +2,7 @@ package com.cinema.booking.booking;
 
 import com.cinema.booking.booking.dto.BookingRequest;
 import com.cinema.booking.booking.dto.BookingResponse;
+import com.cinema.booking.booking.dto.TicketResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -43,5 +44,10 @@ public class BookingController {
     @PatchMapping("/{id}/cancel")
     public BookingResponse cancel(@PathVariable Long id) {
         return bookingService.cancel(id);
+    }
+
+    @GetMapping("/{id}/ticket")
+    public TicketResponse getTicket(@PathVariable Long id) {
+        return bookingService.getTicket(id);
     }
 }

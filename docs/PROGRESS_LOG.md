@@ -33,6 +33,9 @@ timeline
         Seed data test (V3) + Postman collection : 52 request, chain qua bien
     section 2026-08-03 — Luong Booking
         CRUD-nho Booking : User entity toi thieu : create/get/history/cancel : check trung ghe app-level : test (126 test)
+    section 2026-08-04 — Payment gia lap
+        Payment bypass : idempotency_key chong double-charge : booking PENDING - PAID : ticket_code + QR that (ZXing) : test (139 test)
+        Postman - Payment folder : pay/replay/get ticket
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -661,6 +664,107 @@ công khi `PENDING` + ném lỗi khi không phải `PENDING`.
 </details>
 
 ---
+
+<details>
+<summary><strong>2026-08-04 — Payment giả lập (<code>/api/payments</code>) + ticket/QR</strong> — bypass gateway that, idempotency_key chong double-charge, sinh ticket_code + QR code that (ZXing)</summary>
+
+**Mục đích:** mục tiếp theo trong checklist Giai đoạn 1 sau Luồng
+Booking — hoàn tất chu trình PENDING → PAID, để booking có thể đi tới
+trạng thái cuối cùng (vé) mà không cần tích hợp cổng thanh toán thật
+(để dành Giai đoạn 3).
+
+**Đã làm:**
+- `pom.xml`: thêm `com.google.zxing:core` + `com.google.zxing:javase`
+  (3.5.3) — sinh QR code **thật** (ảnh PNG), không phải chuỗi giả lập.
+- `src/main/resources/db/migration/V5__add_ticket_code_to_bookings.sql`
+  — thêm cột `bookings.ticket_code` (`VARCHAR(50)`, `UNIQUE`, nullable
+  — chỉ có giá trị sau khi `PAID`).
+- `common/util/QrCodeGenerator.java` — static method
+  `toBase64Png(String content)`, dùng `QRCodeWriter` +
+  `MatrixToImageWriter` của ZXing, trả về data URI
+  (`data:image/png;base64,...`) để FE nhúng thẳng vào `<img>`.
+- `common/util/TicketCodeGenerator.java` — static method `generate()`,
+  sinh mã 8 ký tự từ bảng chữ cái đã loại bỏ ký tự dễ nhầm (`0/O`,
+  `1/I`), tiền tố `CB-`. Không retry khi trùng `ticket_code` (UNIQUE) —
+  không gian 32^8 đủ lớn để bỏ qua ở quy mô project học tập này.
+- `payment/` package mới — `Payment` (entity map `payments`),
+  `PaymentStatus` (`PENDING/SUCCESS/FAILED`, khớp `CHECK` constraint),
+  `PaymentRepository` (+ `findByIdempotencyKey`), `dto/PaymentRequest`
+  (`bookingId`, `idempotencyKey` — cả 2 đều bắt buộc), `dto/PaymentResponse`
+  (kèm `ticketCode`, `qrCodeBase64`), `PaymentMapper`, `PaymentService`,
+  `PaymentController` (`POST /api/payments`).
+- `PaymentService.pay()`:
+  1. Tra `idempotencyKey` trước — nếu đã tồn tại, trả về **nguyên
+     payment cũ** (không tạo mới, không thanh toán lại). Nếu key đó
+     gắn với 1 `bookingId` khác request hiện tại → `BookingConflictException`
+     (dùng sai key, không phải chuyện thường).
+  2. Nếu key chưa tồn tại: validate `booking` tồn tại + đang
+     `PENDING` (`BookingConflictException` nếu không), tạo `Payment`
+     **luôn `SUCCESS` ngay** (bypass — không gọi ra ngoài, không có
+     khái niệm gateway thật ở giai đoạn này), `transactionRef` dạng
+     `FAKE-{uuid}`.
+  3. Cập nhật `booking.status = PAID` + sinh `ticketCode` — tận dụng
+     managed entity trong transaction, không gọi `save()` thêm (dirty
+     checking, đúng pattern `BookingService.cancel`).
+- `booking/Booking.java` thêm field `ticketCode`. `BookingResponse`
+  thêm field `ticketCode` (null nếu chưa `PAID`).
+- `booking/dto/TicketResponse.java` (mới) — `bookingId`, `ticketCode`,
+  `qrCodeBase64`, `movieTitle`, `roomName`, `startTime`, `seats`.
+  `BookingMapper.toTicketResponse()` **sinh lại QR mỗi lần gọi** từ
+  `ticketCode` đã lưu (không lưu ảnh QR trong DB) — đúng thực hành
+  chuẩn (QR chỉ là biểu diễn trực quan của `ticketCode`, không phải dữ
+  liệu gốc).
+- `BookingService.getTicket(id)` (mới) — validate `status == PAID` +
+  `ticketCode != null`, ném `BookingConflictException` nếu chưa thanh
+  toán. `BookingController`: `GET /api/bookings/{id}/ticket`.
+
+**Quyết định kỹ thuật:**
+- `idempotencyKey` do **client tự sinh** và gửi trong body (không phải
+  header) — nhất quán với style DTO-trong-body đã dùng xuyên suốt dự
+  án (`BookingRequest` cũng nhận `userId` trực tiếp trong body vì chưa
+  có JWT). Đúng đúng bản chất nêu ở `docs/ERD.md`: chống double-charge
+  khi mạng lag/người dùng bấm 2 lần, không phải để server tự sinh.
+- Không thêm bảng `tickets` riêng — `ticket_code` chỉ là 1 cột trên
+  `bookings` vì quan hệ 1-1 tuyệt đối (1 booking đã `PAID` có đúng 1
+  vé), không cần entity riêng cho 1 cột.
+- QR code sinh **thật** bằng ZXing thay vì trả chuỗi giả — vì đây là
+  phần học có giá trị cụ thể (tích hợp thư viện sinh ảnh, encode/decode
+  base64), chi phí thêm không đáng kể (1 method tĩnh, không state).
+
+**Test:** `PaymentServiceTest` (Mockito, mock `PaymentRepository` +
+`BookingRepository`): thanh toán thành công chuyển booking `PAID` +
+sinh `ticketCode`, trả về payment cũ khi replay đúng `idempotencyKey`,
+ném lỗi khi key dùng cho booking khác, ném `ResourceNotFoundException`
+khi booking không tồn tại, ném `BookingConflictException` khi booking
+không `PENDING`. `PaymentControllerTest` (`@WebMvcTest`): `201` kèm
+`ticketCode`/`qrCodeBase64`, `400` khi thiếu `idempotencyKey`, `404`,
+`409`. Thêm `BookingServiceTest`/`BookingControllerTest` case cho
+`getTicket` (trả vé khi `PAID`, `409` khi chưa thanh toán). Tổng `mvn
+test`: 139 test, 0 fail/error, `BUILD SUCCESS`.
+
+**Smoke-test thủ công:** chạy app thật (`mvn spring-boot:run`, Postgres
+từ docker-compose đang chạy sẵn) qua `curl` toàn bộ chuỗi: tạo booking
+→ xem vé trước khi trả tiền (409) → trả tiền (201, `SUCCESS` + QR PNG
+base64 hợp lệ) → gọi lại đúng `idempotencyKey` (trả về đúng payment cũ,
+không tạo bản ghi mới) → trả tiền lần 2 với key mới trên booking đã
+`PAID` (409) → xem vé sau khi trả tiền (đúng `ticketCode`/phim/số ghế).
+Đã tắt app sau khi test xong.
+
+**Postman:** thêm folder "Payment" (`postman/cinema-booking-service.postman_collection.json`)
+— dùng **ghế thứ 3/4** trong sơ đồ (khác ghế thứ 1/2 mà folder
+"Booking" đã dùng) để tạo 1 booking riêng, tránh tranh ghế khi chạy cả
+2 folder trong cùng 1 lần collection run. Request "Pay Booking" tự
+sinh `idempotencyKey` mới trong pre-request script và lưu vào collection
+variable `{{paymentIdempotencyKey}}`; "Pay Booking - Idempotent Replay"
+dùng lại nguyên key đó; "Pay Booking - Already Paid" dùng
+`{{$guid}}` (dynamic variable của Postman) làm key mới để minh hoạ vẫn
+bị từ chối dù key khác nhau (vì booking đã `PAID`, không phải vì trùng
+key).
+
+**Trạng thái:** chưa commit (untracked/modified — cùng đợt với
+`V4__seed_demo_users.sql` và phần Postman Booking từ phiên trước).
+
+</details>
 
 ## Cách thêm entry mới
 

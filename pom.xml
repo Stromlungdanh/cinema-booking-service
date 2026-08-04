@@ -70,6 +70,18 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- Sinh QR code (PNG) cho ve sau khi thanh toan -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>javase</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+
         <!-- Auto-restart khi sua code -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

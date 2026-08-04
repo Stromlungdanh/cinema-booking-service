@@ -52,6 +52,11 @@ public class Booking {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    // Sinh khi thanh toan (gia lap) thanh cong, encode vao QR - xem
+    // package `payment`. NULL khi booking chua PAID.
+    @Column(name = "ticket_code", length = 50, unique = true)
+    private String ticketCode;
+
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<BookingSeat> seats = new ArrayList<>();
 }

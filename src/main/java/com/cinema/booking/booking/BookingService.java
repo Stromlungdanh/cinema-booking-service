@@ -2,6 +2,7 @@ package com.cinema.booking.booking;
 
 import com.cinema.booking.booking.dto.BookingRequest;
 import com.cinema.booking.booking.dto.BookingResponse;
+import com.cinema.booking.booking.dto.TicketResponse;
 import com.cinema.booking.common.exception.BookingConflictException;
 import com.cinema.booking.common.exception.ResourceNotFoundException;
 import com.cinema.booking.seat.Seat;
@@ -90,6 +91,15 @@ public class BookingService {
         }
         booking.setStatus(BookingStatus.CANCELLED);
         return BookingMapper.toResponse(booking);
+    }
+
+    @Transactional(readOnly = true)
+    public TicketResponse getTicket(Long id) {
+        Booking booking = getBookingOrThrow(id);
+        if (booking.getStatus() != BookingStatus.PAID || booking.getTicketCode() == null) {
+            throw new BookingConflictException("Booking chua thanh toan, chua co ve");
+        }
+        return BookingMapper.toTicketResponse(booking);
     }
 
     // Validate moi seatId ton tai va thuoc dung phong chieu cua showtime,

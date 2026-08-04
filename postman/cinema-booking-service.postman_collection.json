@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b5c6a1f0-2b2a-4a7a-9a3a-cinema-booking-service",
     "name": "Cinema Booking Service",
-    "description": "API test collection cho du an cinema-booking-service (Giai doan 1). Gom 2 nhom: 'Admin' (CRUD, thuong duoi /api/admin/...) va 'Public' (chi doc, duoi /api/...).\n\nCach dung:\n1. `docker compose up -d` (Postgres + Redis) roi chay app Spring Boot (`mvn spring-boot:run`).\n2. Migration `V3__seed_test_data.sql` tu dong seed san: 2 brand (CGV, BHD), moi brand 1 rap + 1 phong (40 ghe), 6 phim (3 NOW_SHOWING, 2 COMING_SOON, 1 ENDED), 6 the loai, 6 dien vien, 6 suat chieu (hom nay + ngay mai).\n3. Cac request 'List ...' (dau moi folder) tu dong luu id dau tien vao collection variable (VD `{{movieId}}`, `{{cinemaId}}`) qua Tests script - cac request phia sau trong cung folder hoac folder ke tiep dung lai bien do. Nen chay request 'List' truoc khi chay cac request can id.\n4. Moi folder Admin CRUD deu tao 1 ban ghi demo rieng (`{{createdXxxId}}`) de test Update/Delete - KHONG dung/xoa du lieu seed, de Public folder luon co du lieu ma khong can chay lai migration.\n5. ID thuc te phu thuoc IDENTITY sequence cua Postgres (khong chac chan bat dau tu 1, kieu ca khi rollback/loi migration cung lam tang sequence) - vi vay collection nay khong hardcode id, luon dua vao bien duoc capture o buoc List/Create.",
+    "description": "API test collection cho du an cinema-booking-service (Giai doan 1). Gom 4 nhom: 'Admin' (CRUD, thuong duoi /api/admin/...), 'Public' (chi doc, duoi /api/...), 'Booking' (luong dat ve /api/bookings) va 'Payment' (thanh toan gia lap /api/payments + xem ve /api/bookings/{id}/ticket).\n\nCach dung:\n1. `docker compose up -d` (Postgres + Redis) roi chay app Spring Boot (`mvn spring-boot:run`).\n2. Migration `V3__seed_test_data.sql` tu dong seed san: 2 brand (CGV, BHD), moi brand 1 rap + 1 phong (40 ghe), 6 phim (3 NOW_SHOWING, 2 COMING_SOON, 1 ENDED), 6 the loai, 6 dien vien, 6 suat chieu (hom nay + ngay mai). `V4__seed_demo_users.sql` seed them 2 user demo (chi dung cho Booking/Payment - xem muc 6).\n3. Cac request 'List ...' (dau moi folder) tu dong luu id dau tien vao collection variable (VD `{{movieId}}`, `{{cinemaId}}`) qua Tests script - cac request phia sau trong cung folder hoac folder ke tiep dung lai bien do. Nen chay request 'List' truoc khi chay cac request can id.\n4. Moi folder Admin CRUD deu tao 1 ban ghi demo rieng (`{{createdXxxId}}`) de test Update/Delete - KHONG dung/xoa du lieu seed, de Public folder luon co du lieu ma khong can chay lai migration.\n5. ID thuc te phu thuoc IDENTITY sequence cua Postgres (khong chac chan bat dau tu 1, kieu ca khi rollback/loi migration cung lam tang sequence) - vi vay collection nay khong hardcode id, luon dua vao bien duoc capture o buoc List/Create.\n6. `User` chua co API tao/list (chi la entity toi thieu cho FK cua Booking) nen collection KHONG the tu dong lay `{{userId}}` qua HTTP nhu cac resource khac - can tra cuu 1 lan qua psql/pgAdmin (`SELECT id FROM users WHERE email = 'nguyen.van.a@example.com';`) roi tu set gia tri do vao collection variable `userId` truoc khi chay folder 'Booking'/'Payment'.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -36,7 +36,15 @@
     { "key": "movieId", "value": "", "type": "string" },
     { "key": "createdMovieId", "value": "", "type": "string" },
     { "key": "showtimeId", "value": "", "type": "string" },
-    { "key": "createdShowtimeId", "value": "", "type": "string" }
+    { "key": "createdShowtimeId", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "bookingSeatId1", "value": "", "type": "string" },
+    { "key": "bookingSeatId2", "value": "", "type": "string" },
+    { "key": "bookingId", "value": "", "type": "string" },
+    { "key": "paymentSeatId1", "value": "", "type": "string" },
+    { "key": "paymentSeatId2", "value": "", "type": "string" },
+    { "key": "paymentBookingId", "value": "", "type": "string" },
+    { "key": "paymentIdempotencyKey", "value": "", "type": "string" }
   ],
   "item": [
     {
@@ -772,7 +780,7 @@
     },
     {
       "name": "Public - Seat Map",
-      "description": "/api/showtimes/{id}/seats - man hinh 'Chon ghe'. Can {{showtimeId}} - chay 'Public - Showtime' truoc. Chua co trang thai con trong/da dat (Booking chua lam), chi co layout + gia tung ghe.",
+      "description": "/api/showtimes/{id}/seats - man hinh 'Chon ghe'. Can {{showtimeId}} - chay 'Public - Showtime' truoc. Chi co layout + gia tung ghe, chua co trang thai con trong/da dat (se lam khi co seat-hold/lock o Giai doan 2).",
       "item": [
         {
           "name": "Seat Map For Showtime",
@@ -780,6 +788,204 @@
             "method": "GET",
             "header": [],
             "url": { "raw": "{{baseUrl}}/api/showtimes/{{showtimeId}}/seats", "host": ["{{baseUrl}}"], "path": ["api", "showtimes", "{{showtimeId}}", "seats"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Booking",
+      "description": "Luong dat ve /api/bookings. Thu tu chay: (1) 'Public - Brand > List Brands' -> (2) 'Public - Cinema > Cinemas By Brand' -> (3) 'Public - Showtime > Showtimes By Cinema And Date' (de co {{showtimeId}}) -> (4) set thu cong collection variable {{userId}} (xem huong dan o description cua collection - chua co API list User) -> (5) cac request trong folder nay theo dung thu tu tren xuong. 'Create Booking' + 'Create Booking - Seat Already Booked' dung LAI CUNG {{showtimeId}}/ghe da chon o buoc (1) de minh hoa ca luong thanh cong lan check trung ghe (409); 'Cancel Booking' + 'Cancel Booking - Already Cancelled' minh hoa quy tac chi huy duoc booking dang PENDING.",
+      "item": [
+        {
+          "name": "1. Seat Map (Pick Seats For Booking)",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body.seats) && body.seats.length > 1) {",
+              "        pm.collectionVariables.set('bookingSeatId1', body.seats[0].id);",
+              "        pm.collectionVariables.set('bookingSeatId2', body.seats[1].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/showtimes/{{showtimeId}}/seats", "host": ["{{baseUrl}}"], "path": ["api", "showtimes", "{{showtimeId}}", "seats"] }
+          }
+        },
+        {
+          "name": "2. Create Booking",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('bookingId', pm.response.json().id);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"userId\": {{userId}},\n    \"showtimeId\": {{showtimeId}},\n    \"seatIds\": [{{bookingSeatId1}}, {{bookingSeatId2}}]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/bookings", "host": ["{{baseUrl}}"], "path": ["api", "bookings"] }
+          }
+        },
+        {
+          "name": "3. Create Booking - Seat Already Booked (409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"userId\": {{userId}},\n    \"showtimeId\": {{showtimeId}},\n    \"seatIds\": [{{bookingSeatId1}}, {{bookingSeatId2}}]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/bookings", "host": ["{{baseUrl}}"], "path": ["api", "bookings"] }
+          }
+        },
+        {
+          "name": "4. Get Booking By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/bookings/{{bookingId}}", "host": ["{{baseUrl}}"], "path": ["api", "bookings", "{{bookingId}}"] }
+          }
+        },
+        {
+          "name": "5. Booking History By User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings?userId={{userId}}",
+              "host": ["{{baseUrl}}"], "path": ["api", "bookings"],
+              "query": [{ "key": "userId", "value": "{{userId}}" }]
+            }
+          }
+        },
+        {
+          "name": "6. Cancel Booking",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/bookings/{{bookingId}}/cancel", "host": ["{{baseUrl}}"], "path": ["api", "bookings", "{{bookingId}}", "cancel"] }
+          }
+        },
+        {
+          "name": "7. Cancel Booking - Already Cancelled (409)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/bookings/{{bookingId}}/cancel", "host": ["{{baseUrl}}"], "path": ["api", "bookings", "{{bookingId}}", "cancel"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment",
+      "description": "Thanh toan gia lap /api/payments (bypass, luon SUCCESS) + xem ve /api/bookings/{id}/ticket. Dung RIENG mot booking khac voi folder 'Booking' (ghe thu 3/4 trong so do thay vi ghe thu 1/2) de 2 folder khong tranh ghe khi chay chung 1 collection run. Thu tu chay: (1) 'Public - Showtime > Showtimes By Cinema And Date' de co {{showtimeId}} -> (2) set {{userId}} thu cong (xem description cua collection, muc 6) -> (3) cac request trong folder nay theo thu tu tren xuong. 'Pay Booking' tu sinh 1 idempotencyKey moi luu vao {{paymentIdempotencyKey}}; 'Pay Booking - Idempotent Replay' goi lai NGUYEN VEN key do de minh hoa khong bi tinh tien/sinh ve 2 lan; 'Pay Booking - Already Paid (409)' dung idempotencyKey MOI nhung booking da PAID nen van bi tu choi.",
+      "item": [
+        {
+          "name": "1. Seat Map (Pick Seats For Payment Booking)",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body.seats) && body.seats.length > 3) {",
+              "        pm.collectionVariables.set('paymentSeatId1', body.seats[2].id);",
+              "        pm.collectionVariables.set('paymentSeatId2', body.seats[3].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/showtimes/{{showtimeId}}/seats", "host": ["{{baseUrl}}"], "path": ["api", "showtimes", "{{showtimeId}}", "seats"] }
+          }
+        },
+        {
+          "name": "2. Create Booking For Payment",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('paymentBookingId', pm.response.json().id);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"userId\": {{userId}},\n    \"showtimeId\": {{showtimeId}},\n    \"seatIds\": [{{paymentSeatId1}}, {{paymentSeatId2}}]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/bookings", "host": ["{{baseUrl}}"], "path": ["api", "bookings"] }
+          }
+        },
+        {
+          "name": "3. Get Ticket - Not Paid Yet (409)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/bookings/{{paymentBookingId}}/ticket", "host": ["{{baseUrl}}"], "path": ["api", "bookings", "{{paymentBookingId}}", "ticket"] }
+          }
+        },
+        {
+          "name": "4. Pay Booking",
+          "event": [{
+            "listen": "prerequest",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.collectionVariables.set('paymentIdempotencyKey', 'idem-' + Date.now() + '-' + Math.floor(Math.random() * 100000));"
+            ] }
+          }, {
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('status is SUCCESS va co ticketCode/QR', function () {",
+              "    const body = pm.response.json();",
+              "    pm.expect(body.status).to.eql('SUCCESS');",
+              "    pm.expect(body.ticketCode).to.be.a('string');",
+              "    pm.expect(body.qrCodeBase64).to.include('data:image/png;base64,');",
+              "});"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"bookingId\": {{paymentBookingId}},\n    \"idempotencyKey\": \"{{paymentIdempotencyKey}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/payments", "host": ["{{baseUrl}}"], "path": ["api", "payments"] }
+          }
+        },
+        {
+          "name": "5. Pay Booking - Idempotent Replay (same key, no double charge)",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('tra ve dung payment cu, khong tao ban ghi moi', function () {",
+              "    pm.expect(pm.response.json().status).to.eql('SUCCESS');",
+              "});"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"bookingId\": {{paymentBookingId}},\n    \"idempotencyKey\": \"{{paymentIdempotencyKey}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/payments", "host": ["{{baseUrl}}"], "path": ["api", "payments"] }
+          }
+        },
+        {
+          "name": "6. Pay Booking - Already Paid, New Idempotency Key (409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"bookingId\": {{paymentBookingId}},\n    \"idempotencyKey\": \"idem-{{$guid}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/payments", "host": ["{{baseUrl}}"], "path": ["api", "payments"] }
+          }
+        },
+        {
+          "name": "7. Get Ticket By Booking Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/bookings/{{paymentBookingId}}/ticket", "host": ["{{baseUrl}}"], "path": ["api", "bookings", "{{paymentBookingId}}", "ticket"] }
           }
         }
       ]

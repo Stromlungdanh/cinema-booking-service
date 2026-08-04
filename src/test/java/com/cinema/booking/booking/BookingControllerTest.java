@@ -3,6 +3,7 @@ package com.cinema.booking.booking;
 import com.cinema.booking.booking.dto.BookingRequest;
 import com.cinema.booking.booking.dto.BookingResponse;
 import com.cinema.booking.booking.dto.BookingSeatResponse;
+import com.cinema.booking.booking.dto.TicketResponse;
 import com.cinema.booking.common.exception.BookingConflictException;
 import com.cinema.booking.common.exception.ResourceNotFoundException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,6 +50,7 @@ class BookingControllerTest {
                 status,
                 new BigDecimal("225000.00"),
                 OffsetDateTime.parse("2026-08-01T09:00:00+07:00"),
+                status == BookingStatus.PAID ? "CB-ABCD1234" : null,
                 List.of(new BookingSeatResponse(1L, "A", 1, new BigDecimal("90000.00")),
                         new BookingSeatResponse(2L, "A", 2, new BigDecimal("135000.00")))
         );
@@ -124,6 +126,31 @@ class BookingControllerTest {
                 .thenThrow(new BookingConflictException("Chi huy duoc booking dang o trang thai PENDING"));
 
         mockMvc.perform(patch("/api/bookings/1/cancel"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void getTicket_returns200WithQrCode() throws Exception {
+        TicketResponse ticket = new TicketResponse(
+                1L, "CB-ABCD1234", "data:image/png;base64,abc123",
+                "Avengers", "Phong 1",
+                OffsetDateTime.parse("2026-08-01T10:00:00+07:00"),
+                List.of(new BookingSeatResponse(1L, "A", 1, new BigDecimal("90000.00")))
+        );
+        when(bookingService.getTicket(1L)).thenReturn(ticket);
+
+        mockMvc.perform(get("/api/bookings/1/ticket"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ticketCode").value("CB-ABCD1234"))
+                .andExpect(jsonPath("$.qrCodeBase64").value("data:image/png;base64,abc123"));
+    }
+
+    @Test
+    void getTicket_returns409WhenNotPaid() throws Exception {
+        when(bookingService.getTicket(1L))
+                .thenThrow(new BookingConflictException("Booking chua thanh toan, chua co ve"));
+
+        mockMvc.perform(get("/api/bookings/1/ticket"))
                 .andExpect(status().isConflict());
     }
 }
