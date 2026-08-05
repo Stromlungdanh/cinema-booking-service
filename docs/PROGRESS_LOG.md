@@ -40,6 +40,8 @@ timeline
         JWT login thuong : register/login : UserRole enum : SecurityFilterChain permitAll/authenticated/hasRole(ADMIN)
         Booking/Payment dung JWT principal thay userId client-supplied : ownership check 404 : test (160 test)
         Postman - Auth folder : bearer {{authToken}}/{{adminAuthToken}} ke thua/override theo folder
+        Admin quan ly User : cot active : lock/unlock/doi role : chan self-lockout (409)
+        Admin quan ly Booking : xem/loc/huy booking moi user : tai dung BookingService : test (185 test)
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -885,6 +887,112 @@ folder "Admin - ...", `noauth` ở "Health"/"Public - ..."/"Auth". Bỏ
 `userId` khỏi body Create Booking và query param của Booking History —
 xoá luôn hướng dẫn tra `{{userId}}` qua psql trong description collection
 (không còn cần thiết).
+
+**Trạng thái:** chưa commit.
+
+</details>
+
+<details>
+<summary><strong>2026-08-05 — Admin quản lý User + Admin quản lý Booking</strong> — 2 mục còn thiếu trong checklist Giai đoạn 1, khớp mục tiêu Admin đã khai báo (mục 2 `ROADMAP.md`) từ trước nhưng chưa có endpoint</summary>
+
+**Mục đích:** làm theo yêu cầu trực tiếp — bỏ qua "Login Google/SSO" và
+"Quên mật khẩu" (đã ghi trong roadmap nhưng chưa tới lượt), ưu tiên 2
+việc Admin quản lý còn thiếu. `/api/admin/**` đã tự động yêu cầu
+`ROLE_ADMIN` từ `SecurityConfig` có sẵn (từ task JWT) nên 2 tính năng
+này **không cần sửa gì ở tầng security**, chỉ thêm route đúng chỗ.
+
+**Đã làm:**
+- `V7__add_active_to_users.sql`: `ALTER TABLE users ADD COLUMN active
+  BOOLEAN NOT NULL DEFAULT true`.
+- `User.active` (`Boolean`, mặc định `true`).
+- `user/` thêm nhánh admin (song song `AuthService` đã có, không
+  refactor): `dto/UserResponse` (không lộ `passwordHash`),
+  `dto/UpdateUserRoleRequest`, `UserMapper` (style tay, `final class` +
+  private constructor, đúng `BookingMapper`), `UserService`
+  (`findAll`, `findById`, `updateRole`, `lock`, `unlock`),
+  `UserController` (`/api/admin/users`).
+- `AuthService.login` thêm check `!user.getActive()` → ném
+  `InvalidCredentialsException("Tai khoan da bi khoa")` — **tái dùng**
+  exception có sẵn thay vì tạo type mới chỉ để đổi message, giữ đúng
+  tinh thần "không thêm abstraction khi chưa cần".
+- **Chặn self-lockout** (đã hỏi và xác nhận qua `AskUserQuestion`):
+  `UserService.updateRole`/`lock` ném `SelfActionNotAllowedException`
+  mới (409) nếu `targetId.equals(currentAdminId)` — admin không tự
+  khoá hoặc tự hạ role của chính mình. `unlock` không cần check này
+  (mở khoá cho chính mình không gây hại).
+- `BookingRepository` thêm `findAllFiltered` — 1 JPQL với điều kiện
+  optional kiểu `(:status IS NULL OR b.status = :status) AND ...` xử
+  lý mọi tổ hợp filter (`status`/`userId`/`showtimeId`) trong 1 query,
+  tránh nổ tổ hợp derived-query method.
+- `BookingService` thêm 3 method cho admin (không tạo
+  `AdminBookingService` riêng — đúng tiền lệ `MovieService`/
+  `ShowtimeService` phục vụ cả admin lẫn public):
+  `findAllForAdmin`, `findByIdForAdmin` (tái dùng `getBookingOrThrow`,
+  không gọi `requireOwner`), `cancelForAdmin`. Tách phần chuyển trạng
+  thái `PENDING → CANCELLED` ra helper riêng `transitionToCancelled`
+  dùng chung giữa `cancel()` (user, có ownership check) và
+  `cancelForAdmin()` (không check) — tránh lặp rule nghiệp vụ "chỉ huỷ
+  được khi đang PENDING".
+- `booking/AdminBookingController.java` (mới, `/api/admin/bookings`) —
+  tách riêng khỏi `BookingController` (`/api/bookings`, chỉ thao tác
+  booking của chính user đang đăng nhập), đúng tiền lệ
+  `MovieController`/`MoviePublicController`. `GET` (filter query param
+  optional), `GET /{id}`, `PATCH /{id}/cancel`. Tái dùng nguyên
+  `BookingResponse` có sẵn, không tạo DTO mới.
+- `common/exception/SelfActionNotAllowedException.java` (mới) → 409,
+  wire vào `GlobalExceptionHandler`.
+
+**Quyết định kỹ thuật:**
+- Admin huỷ booking (`cancelForAdmin`) **giữ nguyên** rule "chỉ huỷ
+  được khi đang PENDING" như user tự huỷ — không cho huỷ booking đã
+  `PAID` vì chưa có luồng hoàn tiền (Giai đoạn 3), tránh để `Payment`
+  (status `SUCCESS`) và `Booking` (status `CANCELLED`) lệch nhau.
+- **Known limitation, cố tình không fix trong task này:** JWT đã phát
+  hành trước khi tài khoản bị khoá vẫn còn hiệu lực tới khi hết hạn tự
+  nhiên (24h) — do JWT stateless, `JwtAuthenticationFilter` không query
+  DB kiểm tra `active` mỗi request (sẽ phá tính stateless, cần
+  Redis/DB roundtrip mỗi request — để dành nếu có nhu cầu thật, có thể
+  gộp cùng seat-hold Redis ở Giai đoạn 2). "Khoá tài khoản" hiện đảm
+  bảo: không đăng nhập được nữa để lấy token mới; **không** đảm bảo:
+  thu hồi ngay lập tức token đang có.
+- `GET /api/admin/users` không có filter (list toàn bộ) — khác
+  `AdminBookingController` có filter theo status/user/showtime. Lý do:
+  roadmap chỉ ghi "list, xem chi tiết, đổi role, khoá/mở" cho User,
+  không đòi filter; giữ đơn giản đúng pattern các Admin CRUD khác
+  (Brand/Cinema/Room... cũng không có filter).
+
+**Test:** `UserServiceTest`, `UserControllerTest` (`@WebMvcTest`,
+`addFilters=false`, set `SecurityContextHolder` thủ công trong
+`@BeforeEach`/`@AfterEach` như `BookingControllerTest` — cần vì
+`updateRole`/`lock` dùng `@AuthenticationPrincipal`), case mới trong
+`AuthServiceTest` (`login_throwsWhenAccountIsLocked`),
+`AdminBookingControllerTest`, case mới trong `BookingServiceTest`
+(`findAllForAdmin`, `findByIdForAdmin`, `cancelForAdmin` + không-tồn-tại
++ không-PENDING). Tổng `mvn test`: 185 test, 0 fail/error, `BUILD
+SUCCESS`.
+
+**Smoke-test thủ công:** chạy app thật qua `curl`: login admin (seed
+V6) → `GET /api/admin/users` (200, list 4 user) → khoá user id=1 (200)
+→ login lại bằng user đó (401, "Tai khoan da bi khoa") → mở khoá (200)
+→ login lại thành công → admin tự khoá chính mình (409) → admin tự đổi
+role chính mình (409) → đổi role user khác USER→ADMIN (200) → tạo
+booking mới bằng user khác → admin filter `status=PENDING` thấy đúng
+booking đó (dù không phải chủ) → admin huỷ hộ booking đó (200,
+`CANCELLED`). Gặp sự cố nhỏ: tiến trình `java.exe` con của lần
+`mvn spring-boot:run` trước bị `TaskStop` (kill tiến trình `mvn` cha)
+không dừng theo, chiếm port 8080 ở lần chạy lại — phải tự tìm PID qua
+`Get-NetTCPConnection` và `Stop-Process -Force` thủ công trước khi
+chạy lại app. Đã tắt app + xác nhận port 8080 giải phóng sau khi test
+xong.
+
+**Postman:** thêm 2 folder "Admin - User" (List/Get/đổi role lên
+xuống/lock/unlock/"Lock Own Account - Blocked (409)") và "Admin -
+Booking" (List all/List filter theo status/Get/Cancel), auth kế thừa
+`bearer {{adminAuthToken}}` đúng pattern các folder Admin khác. "Login
+as Admin" (folder Auth) sửa Tests script lưu thêm `{{adminUserId}}`
+(dùng để demo request "Lock Own Account - Blocked"). "List Users" ưu
+tiên lưu id 1 user **không phải ADMIN** vào `{{targetUserId}}` (tránh
+demo nhầm lên chính tài khoản admin đang dùng).
 
 **Trạng thái:** chưa commit.
 

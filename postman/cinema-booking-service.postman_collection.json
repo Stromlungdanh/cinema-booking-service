@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b5c6a1f0-2b2a-4a7a-9a3a-cinema-booking-service",
     "name": "Cinema Booking Service",
-    "description": "API test collection cho du an cinema-booking-service (Giai doan 1). Gom 5 nhom: 'Auth' (dang ky/dang nhap, lay JWT), 'Admin' (CRUD, duoi /api/admin/..., can token ADMIN), 'Public' (chi doc, duoi /api/..., khong can dang nhap), 'Booking' (luong dat ve /api/bookings, can token dang nhap) va 'Payment' (thanh toan gia lap /api/payments + xem ve /api/bookings/{id}/ticket, can token dang nhap).\n\nCach dung:\n1. `docker compose up -d` (Postgres + Redis) roi chay app Spring Boot (`mvn spring-boot:run`).\n2. Migration `V3__seed_test_data.sql` tu dong seed san: 2 brand (CGV, BHD), moi brand 1 rap + 1 phong (40 ghe), 6 phim (3 NOW_SHOWING, 2 COMING_SOON, 1 ENDED), 6 the loai, 6 dien vien, 6 suat chieu (hom nay + ngay mai). `V4__seed_demo_users.sql` seed 2 user demo, `V6__add_passwords_to_seed_users.sql` gan mat khau cho 2 user do (`Password123!`) + them 1 user ADMIN demo (`admin@example.com` / `AdminPass123!`).\n3. Chay folder 'Auth' truoc tien: 'Login' luu token vao `{{authToken}}` (dung cho Booking/Payment, ke thua o muc collection), 'Login as Admin' luu token vao `{{adminAuthToken}}` (cac folder 'Admin - ...' override auth bang bien nay).\n4. Cac request 'List ...' (dau moi folder Admin/Public) tu dong luu id dau tien vao collection variable (VD `{{movieId}}`, `{{cinemaId}}`) qua Tests script - cac request phia sau trong cung folder hoac folder ke tiep dung lai bien do. Nen chay request 'List' truoc khi chay cac request can id.\n5. Moi folder Admin CRUD deu tao 1 ban ghi demo rieng (`{{createdXxxId}}`) de test Update/Delete - KHONG dung/xoa du lieu seed, de Public folder luon co du lieu ma khong can chay lai migration.\n6. ID thuc te phu thuoc IDENTITY sequence cua Postgres (khong chac chan bat dau tu 1, kieu ca khi rollback/loi migration cung lam tang sequence) - vi vay collection nay khong hardcode id, luon dua vao bien duoc capture o buoc List/Create.",
+    "description": "API test collection cho du an cinema-booking-service (Giai doan 1). Gom 5 nhom: 'Auth' (dang ky/dang nhap, lay JWT), 'Admin' (CRUD, duoi /api/admin/..., can token ADMIN), 'Public' (chi doc, duoi /api/..., khong can dang nhap), 'Booking' (luong dat ve /api/bookings, can token dang nhap) va 'Payment' (thanh toan gia lap /api/payments + xem ve /api/bookings/{id}/ticket, can token dang nhap).\n\nCach dung:\n1. `docker compose up -d` (Postgres + Redis) roi chay app Spring Boot (`mvn spring-boot:run`).\n2. Migration `V3__seed_test_data.sql` tu dong seed san: 2 brand (CGV, BHD), moi brand 1 rap + 1 phong (40 ghe), 6 phim (3 NOW_SHOWING, 2 COMING_SOON, 1 ENDED), 6 the loai, 6 dien vien, 6 suat chieu (hom nay + ngay mai). `V4__seed_demo_users.sql` seed 2 user demo, `V6__add_passwords_to_seed_users.sql` gan mat khau cho 2 user do (`Password123!`) + them 1 user ADMIN demo (`admin@example.com` / `AdminPass123!`).\n3. Chay folder 'Auth' truoc tien: 'Login' luu token vao `{{authToken}}` (dung cho Booking/Payment, ke thua o muc collection), 'Login as Admin' luu token + userId vao `{{adminAuthToken}}`/`{{adminUserId}}` (cac folder 'Admin - ...' override auth bang bien nay; `{{adminUserId}}` dung de demo chan self-lockout o 'Admin - User').\n4. Cac request 'List ...' (dau moi folder Admin/Public) tu dong luu id dau tien vao collection variable (VD `{{movieId}}`, `{{cinemaId}}`) qua Tests script - cac request phia sau trong cung folder hoac folder ke tiep dung lai bien do. Nen chay request 'List' truoc khi chay cac request can id.\n5. Moi folder Admin CRUD deu tao 1 ban ghi demo rieng (`{{createdXxxId}}`) de test Update/Delete - KHONG dung/xoa du lieu seed, de Public folder luon co du lieu ma khong can chay lai migration.\n6. ID thuc te phu thuoc IDENTITY sequence cua Postgres (khong chac chan bat dau tu 1, kieu ca khi rollback/loi migration cung lam tang sequence) - vi vay collection nay khong hardcode id, luon dua vao bien duoc capture o buoc List/Create.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -43,6 +43,9 @@
     { "key": "createdShowtimeId", "value": "", "type": "string" },
     { "key": "authToken", "value": "", "type": "string" },
     { "key": "adminAuthToken", "value": "", "type": "string" },
+    { "key": "adminUserId", "value": "", "type": "string" },
+    { "key": "targetUserId", "value": "", "type": "string" },
+    { "key": "targetBookingId", "value": "", "type": "string" },
     { "key": "bookingSeatId1", "value": "", "type": "string" },
     { "key": "bookingSeatId2", "value": "", "type": "string" },
     { "key": "bookingId", "value": "", "type": "string" },
@@ -107,7 +110,9 @@
             "listen": "test",
             "script": { "type": "text/javascript", "exec": [
               "if (pm.response.code === 200) {",
-              "    pm.collectionVariables.set('adminAuthToken', pm.response.json().token);",
+              "    const body = pm.response.json();",
+              "    pm.collectionVariables.set('adminAuthToken', body.token);",
+              "    pm.collectionVariables.set('adminUserId', body.userId);",
               "}"
             ] }
           }],
@@ -693,6 +698,139 @@
             "method": "DELETE",
             "header": [],
             "url": { "raw": "{{baseUrl}}/api/admin/showtimes/{{createdShowtimeId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "showtimes", "{{createdShowtimeId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - User",
+      "description": "Quan ly user (/api/admin/users): list, xem chi tiet, doi role, khoa/mo tai khoan. 'List Users' luu id 1 user KHONG phai ADMIN vao {{targetUserId}} (uu tien role USER de tranh dung nham chinh admin dang dang nhap). Chay 'Auth > Login as Admin' truoc (can ca {{adminAuthToken}} lan {{adminUserId}}).",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminAuthToken}}", "type": "string" }] },
+      "item": [
+        {
+          "name": "List Users",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    const nonAdmin = body.find(u => u.role !== 'ADMIN');",
+              "    if (nonAdmin) {",
+              "        pm.collectionVariables.set('targetUserId', nonAdmin.id);",
+              "    } else if (body.length > 0) {",
+              "        pm.collectionVariables.set('targetUserId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/users", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users"] }
+          }
+        },
+        {
+          "name": "Get User By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{targetUserId}}"] }
+          }
+        },
+        {
+          "name": "Update Role - Promote To ADMIN",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"role\": \"ADMIN\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{targetUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{targetUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "Update Role - Demote Back To USER",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"role\": \"USER\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{targetUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{targetUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "Lock User",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{targetUserId}}/lock", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{targetUserId}}", "lock"] }
+          }
+        },
+        {
+          "name": "Unlock User",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{targetUserId}}/unlock", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{targetUserId}}", "unlock"] }
+          }
+        },
+        {
+          "name": "Lock Own Account - Blocked (409)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{adminUserId}}/lock", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{adminUserId}}", "lock"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Booking",
+      "description": "Quan ly booking (/api/admin/bookings): xem toan bo booking cua moi user (loc theo status/userId/showtimeId), huy ho. Khac 'Booking' (chi thao tac booking cua chinh nguoi dang nhap). Chay 'Auth > Login as Admin' truoc.",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminAuthToken}}", "type": "string" }] },
+      "item": [
+        {
+          "name": "List All Bookings",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    if (Array.isArray(body) && body.length > 0) {",
+              "        pm.collectionVariables.set('targetBookingId', body[0].id);",
+              "    }",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/bookings", "host": ["{{baseUrl}}"], "path": ["api", "admin", "bookings"] }
+          }
+        },
+        {
+          "name": "List Bookings - Filter By Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/bookings?status=PENDING",
+              "host": ["{{baseUrl}}"], "path": ["api", "admin", "bookings"],
+              "query": [{ "key": "status", "value": "PENDING" }]
+            }
+          }
+        },
+        {
+          "name": "Get Booking By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/bookings/{{targetBookingId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "bookings", "{{targetBookingId}}"] }
+          }
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/admin/bookings/{{targetBookingId}}/cancel", "host": ["{{baseUrl}}"], "path": ["api", "admin", "bookings", "{{targetBookingId}}", "cancel"] }
           }
         }
       ]

@@ -18,16 +18,18 @@ trọng tâm học là kiến trúc, dữ liệu, concurrency, và vận hành b
 ## 2. Mục tiêu chức năng
 
 ### Phía User
-1. Xem phim (nổi bật / đang chiếu / sắp chiếu, tìm kiếm)
-2. Xem rạp (theo hãng)
-3. Xem phòng chiếu
-4. Xem suất chiếu
-5. Xem sơ đồ ghế
-6. Chọn ghế
-7. Đặt vé
-8. Thanh toán (giả lập ở giai đoạn đầu)
-9. Xem lịch sử đặt vé
-10. Nhận ticket / mã QR
+1. Đăng nhập / Đăng ký — 2 luồng: (a) thường bằng email/password, (b) qua Google/SSO
+2. Quên mật khẩu / đặt lại mật khẩu (chỉ áp dụng cho tài khoản đăng ký thường — tài khoản Google/SSO không có mật khẩu để quên)
+3. Xem phim (nổi bật / đang chiếu / sắp chiếu, tìm kiếm)
+4. Xem rạp (theo hãng)
+5. Xem phòng chiếu
+6. Xem suất chiếu
+7. Xem sơ đồ ghế
+8. Chọn ghế
+9. Đặt vé
+10. Thanh toán (giả lập ở giai đoạn đầu)
+11. Xem lịch sử đặt vé
+12. Nhận ticket / mã QR
 
 ### Phía Admin
 1. Quản lý phim
@@ -42,6 +44,12 @@ trọng tâm học là kiến trúc, dữ liệu, concurrency, và vận hành b
 
 Trang chủ có 2 tab: **Chọn phim** và **Chọn rạp**. Cả hai đều dẫn tới
 cùng một điểm cuối: chọn ghế → xác nhận → thanh toán → nhận ticket.
+
+Từ bước "Đặt vé" trở đi (chọn ghế → xác nhận → thanh toán → lịch sử đặt
+vé) yêu cầu đã đăng nhập (JWT) — đăng nhập qua 1 trong 2 luồng: **thường**
+(email/password, `/api/auth/login`) hoặc **Google/SSO** (chưa làm, xem
+mục 5). Các màn hình xem phim/rạp/suất/sơ đồ ghế không yêu cầu đăng
+nhập. Màn hình đăng nhập/đăng ký chưa detail ở đây vì FE tối thiểu.
 
 ### Tab "Chọn phim"
 
@@ -72,8 +80,8 @@ API/service — không viết trùng cho 2 tab.
 |---|---|
 | Java 21 + Spring Boot 3 | Core backend |
 | PostgreSQL + Flyway | Dữ liệu quan hệ (phim, rạp, ghế, booking...); Flyway quản lý schema thay vì để Hibernate tự sinh — schema là nguồn sự thật duy nhất |
-| Spring Security + JWT | Xác thực API, phân quyền User/Admin |
-| Login Google / SSO | Học OAuth2/OIDC ngoài login thường (email/password) |
+| Spring Security + JWT | Luồng đăng nhập 1 — thường (email/password); xác thực API, phân quyền User/Admin |
+| Login Google / SSO | Luồng đăng nhập 2 — học OAuth2/OIDC ngoài login thường |
 | Redis | Giữ ghế tạm có TTL (chống 2 người đặt trùng ghế), sau này có thể cache dữ liệu đọc nhiều (danh sách phim, suất chiếu) |
 | Kafka | Giao tiếp bất đồng bộ giữa các service khi tách microservice (event: booking tạo, thanh toán thành công...) |
 | ReactJS | Frontend tối thiểu để demo đủ luồng UX ở mục 3 |
@@ -109,6 +117,9 @@ Checklist:
 - [x] Payment giả lập (bypass, sinh `idempotency_key`) + sinh ticket/QR
 - [x] Spring Security + JWT (login thường), phân quyền `hasRole("ADMIN")` cho các controller admin
 - [ ] Login Google / SSO
+- [ ] Quên mật khẩu / đặt lại mật khẩu (`/api/auth/forgot-password`, `/api/auth/reset-password`) — sinh reset token có TTL (lưu DB hoặc Redis), cần cơ chế gửi email (SMTP thật hoặc log ra console ở dev vì chưa có hạ tầng email)
+- [x] Admin quản lý User (`/api/admin/users`): list, xem chi tiết, đổi role, khoá/mở tài khoản
+- [x] Admin quản lý Booking (`/api/admin/bookings`): xem toàn bộ booking (lọc theo status/user/showtime), huỷ hộ
 
 ### Giai đoạn 2 — Bài toán khó: Concurrency & Transaction
 Mục tiêu: chứng minh hệ thống không bán trùng ghế khi nhiều người đặt
@@ -166,17 +177,29 @@ endpoint đọc dữ liệu + `/api/auth/**`, yêu cầu đăng nhập cho
 `/api/admin/**`. `BookingRequest` không còn field `userId` — lấy từ
 JWT principal (`@AuthenticationPrincipal UserPrincipal`); đồng thời vá
 lỗ hổng "ai cũng xem/huỷ/thanh toán được booking người khác nếu biết
-id" bằng ownership check (sai chủ → 404). `mvn test` pass (160 test).
+id" bằng ownership check (sai chủ → 404).
+Đã có **Admin quản lý User** (`/api/admin/users`: list, xem chi tiết,
+đổi role, khoá/mở tài khoản — `User` thêm cột `active`, chặn admin tự
+khoá/tự hạ role chính mình, tài khoản bị khoá không đăng nhập được) và
+**Admin quản lý Booking** (`/api/admin/bookings`: xem toàn bộ booking
+mọi user có lọc theo status/user/showtime, huỷ hộ — tái dùng
+`BookingService`/`BookingResponse` có sẵn, không tạo service/DTO
+riêng). `mvn test` pass (185 test).
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).
 
 ## 7. Sắp tới làm gì (ngay tiếp theo)
 
-Spring Security + JWT (login thường) đã xong. Việc tiếp theo: **Login
-Google / SSO** (OAuth2/OIDC) — tận dụng cột `provider`/`provider_id`
-đã có sẵn trên `User`; sau đó có thể chuyển sang Giai đoạn 2
-(concurrency & transaction) nếu ưu tiên học phần đó trước.
+Admin quản lý User + Booking đã xong. Giai đoạn 1 còn 2 việc, làm theo
+thứ tự nào cũng được trước khi coi Giai đoạn 1 "xong":
+- **Login Google / SSO** (OAuth2/OIDC) — tận dụng cột `provider`/
+  `provider_id` đã có sẵn trên `User`.
+- **Quên mật khẩu / đặt lại mật khẩu** — cần quyết định cơ chế gửi
+  email trước khi code (SMTP thật hay log console cho dev).
+
+Sau khi xong cả 2 (hoặc thấy đủ để coi Giai đoạn 1 hoàn tất), chuyển
+sang Giai đoạn 2 (concurrency & transaction).
 
 ## 8. Quy ước cập nhật tài liệu này
 

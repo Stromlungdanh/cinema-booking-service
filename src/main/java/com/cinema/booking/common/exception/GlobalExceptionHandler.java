@@ -40,6 +40,12 @@ public class GlobalExceptionHandler {
                 .body(ApiError.of(HttpStatus.UNAUTHORIZED.value(), ex.getMessage()));
     }
 
+    @ExceptionHandler(SelfActionNotAllowedException.class)
+    public ResponseEntity<ApiError> handleSelfActionNotAllowed(SelfActionNotAllowedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiError.of(HttpStatus.CONFLICT.value(), ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();

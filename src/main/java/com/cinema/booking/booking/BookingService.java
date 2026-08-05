@@ -89,11 +89,7 @@ public class BookingService {
     public BookingResponse cancel(Long id, Long currentUserId) {
         Booking booking = getBookingOrThrow(id);
         requireOwner(booking, currentUserId);
-        if (booking.getStatus() != BookingStatus.PENDING) {
-            throw new BookingConflictException("Chi huy duoc booking dang o trang thai PENDING");
-        }
-        booking.setStatus(BookingStatus.CANCELLED);
-        return BookingMapper.toResponse(booking);
+        return BookingMapper.toResponse(transitionToCancelled(booking));
     }
 
     @Transactional(readOnly = true)
@@ -104,6 +100,33 @@ public class BookingService {
             throw new BookingConflictException("Booking chua thanh toan, chua co ve");
         }
         return BookingMapper.toTicketResponse(booking);
+    }
+
+    // --- Admin (khong ownership check - xem/huy duoc booking cua moi user) ---
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> findAllForAdmin(BookingStatus status, Long userId, Long showtimeId) {
+        return bookingRepository.findAllFiltered(status, userId, showtimeId).stream()
+                .map(BookingMapper::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public BookingResponse findByIdForAdmin(Long id) {
+        return BookingMapper.toResponse(getBookingOrThrow(id));
+    }
+
+    @Transactional
+    public BookingResponse cancelForAdmin(Long id) {
+        return BookingMapper.toResponse(transitionToCancelled(getBookingOrThrow(id)));
+    }
+
+    private Booking transitionToCancelled(Booking booking) {
+        if (booking.getStatus() != BookingStatus.PENDING) {
+            throw new BookingConflictException("Chi huy duoc booking dang o trang thai PENDING");
+        }
+        booking.setStatus(BookingStatus.CANCELLED);
+        return booking;
     }
 
     // Validate moi seatId ton tai va thuoc dung phong chieu cua showtime,

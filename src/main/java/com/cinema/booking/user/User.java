@@ -47,6 +47,9 @@ public class User {
     @Column(nullable = false, length = 20)
     private UserRole role = UserRole.USER;
 
+    @Column(nullable = false)
+    private Boolean active = true;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 }

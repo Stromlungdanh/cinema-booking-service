@@ -100,6 +100,21 @@ class AuthServiceTest {
     }
 
     @Test
+    void login_throwsWhenAccountIsLocked() {
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("locked@example.com");
+        user.setPasswordHash("hashed-password");
+        user.setActive(false);
+        when(userRepository.findByEmail("locked@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Password123!", "hashed-password")).thenReturn(true);
+
+        LoginRequest request = new LoginRequest("locked@example.com", "Password123!");
+
+        assertThrows(InvalidCredentialsException.class, () -> authService.login(request));
+    }
+
+    @Test
     void login_throwsWhenPasswordDoesNotMatch() {
         User user = new User();
         user.setId(1L);

@@ -50,6 +50,9 @@ public class AuthService {
         if (user.getPasswordHash() == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException("Email hoac mat khau khong dung");
         }
+        if (!user.getActive()) {
+            throw new InvalidCredentialsException("Tai khoan da bi khoa");
+        }
 
         return toAuthResponse(user);
     }

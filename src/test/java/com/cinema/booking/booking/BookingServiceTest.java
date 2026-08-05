@@ -325,4 +325,79 @@ class BookingServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> bookingService.getTicket(1L, 2L));
     }
+
+    @Test
+    void findAllForAdmin_returnsFilteredBookingsRegardlessOfOwner() {
+        Room room = room(1L, "Phong 1");
+        Showtime showtime = showtime(1L, room, "90000");
+        Booking bookingOfUser2 = new Booking();
+        bookingOfUser2.setId(5L);
+        bookingOfUser2.setUser(user(2L));
+        bookingOfUser2.setShowtime(showtime);
+        bookingOfUser2.setStatus(BookingStatus.PENDING);
+        bookingOfUser2.setTotalPrice(new BigDecimal("90000"));
+        when(bookingRepository.findAllFiltered(BookingStatus.PENDING, null, null))
+                .thenReturn(List.of(bookingOfUser2));
+
+        List<BookingResponse> responses = bookingService.findAllForAdmin(BookingStatus.PENDING, null, null);
+
+        assertEquals(1, responses.size());
+        assertEquals(5L, responses.get(0).id());
+    }
+
+    @Test
+    void findByIdForAdmin_returnsBookingRegardlessOfOwner() {
+        Room room = room(1L, "Phong 1");
+        Showtime showtime = showtime(1L, room, "90000");
+        Booking booking = new Booking();
+        booking.setId(1L);
+        booking.setUser(user(2L));
+        booking.setShowtime(showtime);
+        booking.setStatus(BookingStatus.PENDING);
+        booking.setTotalPrice(new BigDecimal("90000"));
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+
+        BookingResponse response = bookingService.findByIdForAdmin(1L);
+
+        assertEquals(2L, response.userId());
+    }
+
+    @Test
+    void findByIdForAdmin_throwsWhenMissing() {
+        when(bookingRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> bookingService.findByIdForAdmin(99L));
+    }
+
+    @Test
+    void cancelForAdmin_cancelsBookingRegardlessOfOwner() {
+        Room room = room(1L, "Phong 1");
+        Showtime showtime = showtime(1L, room, "90000");
+        Booking booking = new Booking();
+        booking.setId(1L);
+        booking.setUser(user(2L));
+        booking.setShowtime(showtime);
+        booking.setStatus(BookingStatus.PENDING);
+        booking.setTotalPrice(new BigDecimal("90000"));
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+
+        BookingResponse response = bookingService.cancelForAdmin(1L);
+
+        assertEquals(BookingStatus.CANCELLED, response.status());
+    }
+
+    @Test
+    void cancelForAdmin_throwsWhenBookingNotPending() {
+        Room room = room(1L, "Phong 1");
+        Showtime showtime = showtime(1L, room, "90000");
+        Booking booking = new Booking();
+        booking.setId(1L);
+        booking.setUser(user(2L));
+        booking.setShowtime(showtime);
+        booking.setStatus(BookingStatus.PAID);
+        booking.setTotalPrice(new BigDecimal("90000"));
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+
+        assertThrows(BookingConflictException.class, () -> bookingService.cancelForAdmin(1L));
+    }
 }
