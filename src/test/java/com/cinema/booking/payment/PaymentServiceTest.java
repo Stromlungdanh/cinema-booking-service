@@ -50,9 +50,12 @@ class PaymentServiceTest {
         showtime.setMovie(movie);
         showtime.setRoom(room);
 
+        User user = new User();
+        user.setId(1L);
+
         Booking booking = new Booking();
         booking.setId(id);
-        booking.setUser(new User());
+        booking.setUser(user);
         booking.setShowtime(showtime);
         booking.setStatus(BookingStatus.PENDING);
         booking.setTotalPrice(new BigDecimal("90000"));
@@ -70,7 +73,7 @@ class PaymentServiceTest {
             return payment;
         });
 
-        PaymentResponse response = paymentService.pay(new PaymentRequest(1L, "idem-1"));
+        PaymentResponse response = paymentService.pay(1L, new PaymentRequest(1L, "idem-1"));
 
         assertEquals(PaymentStatus.SUCCESS, response.status());
         assertEquals(BookingStatus.PAID, booking.getStatus());
@@ -92,7 +95,7 @@ class PaymentServiceTest {
         existing.setIdempotencyKey("idem-1");
         when(paymentRepository.findByIdempotencyKey("idem-1")).thenReturn(Optional.of(existing));
 
-        PaymentResponse response = paymentService.pay(new PaymentRequest(1L, "idem-1"));
+        PaymentResponse response = paymentService.pay(1L, new PaymentRequest(1L, "idem-1"));
 
         assertEquals(50L, response.id());
         assertEquals("CB-EXISTING1", response.ticketCode());
@@ -108,7 +111,7 @@ class PaymentServiceTest {
         when(paymentRepository.findByIdempotencyKey("idem-1")).thenReturn(Optional.of(existing));
 
         assertThrows(BookingConflictException.class,
-                () -> paymentService.pay(new PaymentRequest(1L, "idem-1")));
+                () -> paymentService.pay(1L, new PaymentRequest(1L, "idem-1")));
     }
 
     @Test
@@ -117,7 +120,7 @@ class PaymentServiceTest {
         when(bookingRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> paymentService.pay(new PaymentRequest(99L, "idem-1")));
+                () -> paymentService.pay(1L, new PaymentRequest(99L, "idem-1")));
     }
 
     @Test
@@ -128,6 +131,16 @@ class PaymentServiceTest {
         when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
 
         assertThrows(BookingConflictException.class,
-                () -> paymentService.pay(new PaymentRequest(1L, "idem-1")));
+                () -> paymentService.pay(1L, new PaymentRequest(1L, "idem-1")));
+    }
+
+    @Test
+    void pay_throwsWhenNotOwner() {
+        Booking booking = pendingBooking(1L);
+        when(paymentRepository.findByIdempotencyKey("idem-1")).thenReturn(Optional.empty());
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> paymentService.pay(2L, new PaymentRequest(1L, "idem-1")));
     }
 }

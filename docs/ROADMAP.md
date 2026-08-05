@@ -107,7 +107,7 @@ Checklist:
 - [x] API public cho User: danh sách phim nổi bật/đang chiếu/sắp chiếu, chi tiết phim, danh sách rạp theo hãng, suất chiếu theo rạp/ngày, sơ đồ ghế theo suất chiếu
 - [x] Luồng Booking (tạo booking từ ghế đã chọn, tính tiền, trạng thái PENDING/PAID/CANCELLED/EXPIRED)
 - [x] Payment giả lập (bypass, sinh `idempotency_key`) + sinh ticket/QR
-- [ ] Spring Security + JWT (login thường), phân quyền `hasRole("ADMIN")` cho các controller admin
+- [x] Spring Security + JWT (login thường), phân quyền `hasRole("ADMIN")` cho các controller admin
 - [ ] Login Google / SSO
 
 ### Giai đoạn 2 — Bài toán khó: Concurrency & Transaction
@@ -157,18 +157,26 @@ gateway thật), luôn trả `SUCCESS` ngay, dùng `idempotencyKey` do client
 tự sinh để chống thanh toán trùng khi gọi lại API (mạng lag, bấm 2
 lần), chuyển `Booking` từ `PENDING` → `PAID`, sinh `ticketCode` +
 QR code thật (PNG, thư viện ZXing) lấy qua `GET
-/api/bookings/{id}/ticket` (chỉ xem được khi đã `PAID`). `mvn test`
-pass (139 test).
+/api/bookings/{id}/ticket` (chỉ xem được khi đã `PAID`).
+Đã có **Spring Security + JWT** (`/api/auth/register`,
+`/api/auth/login` — email/password, không phải OAuth2): `User.role`
+chuyển sang enum `UserRole`, `SecurityFilterChain` public hoá các
+endpoint đọc dữ liệu + `/api/auth/**`, yêu cầu đăng nhập cho
+`/api/bookings/**`/`/api/payments/**`, yêu cầu `ROLE_ADMIN` cho
+`/api/admin/**`. `BookingRequest` không còn field `userId` — lấy từ
+JWT principal (`@AuthenticationPrincipal UserPrincipal`); đồng thời vá
+lỗ hổng "ai cũng xem/huỷ/thanh toán được booking người khác nếu biết
+id" bằng ownership check (sai chủ → 404). `mvn test` pass (160 test).
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).
 
 ## 7. Sắp tới làm gì (ngay tiếp theo)
 
-Payment giả lập + ticket/QR đã xong. Việc tiếp theo: **Spring Security
-+ JWT** (login thường), phân quyền `hasRole("ADMIN")` cho các
-controller admin — lúc này mới thay được cách truyền `userId` trực
-tiếp trong `BookingRequest` bằng lấy từ JWT principal.
+Spring Security + JWT (login thường) đã xong. Việc tiếp theo: **Login
+Google / SSO** (OAuth2/OIDC) — tận dụng cột `provider`/`provider_id`
+đã có sẵn trên `User`; sau đó có thể chuyển sang Giai đoạn 2
+(concurrency & transaction) nếu ưu tiên học phần đó trước.
 
 ## 8. Quy ước cập nhật tài liệu này
 

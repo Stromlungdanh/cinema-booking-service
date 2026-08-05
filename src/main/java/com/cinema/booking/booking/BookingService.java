@@ -35,8 +35,8 @@ public class BookingService {
     private final SeatRepository seatRepository;
 
     @Transactional
-    public BookingResponse create(BookingRequest request) {
-        User user = getUserOrThrow(request.userId());
+    public BookingResponse create(Long userId, BookingRequest request) {
+        User user = getUserOrThrow(userId);
         Showtime showtime = getShowtimeOrThrow(request.showtimeId());
         List<Seat> seats = resolveSeats(showtime, request.seatIds());
 
@@ -69,8 +69,10 @@ public class BookingService {
     }
 
     @Transactional(readOnly = true)
-    public BookingResponse findById(Long id) {
-        return BookingMapper.toResponse(getBookingOrThrow(id));
+    public BookingResponse findById(Long id, Long currentUserId) {
+        Booking booking = getBookingOrThrow(id);
+        requireOwner(booking, currentUserId);
+        return BookingMapper.toResponse(booking);
     }
 
     @Transactional(readOnly = true)
@@ -84,8 +86,9 @@ public class BookingService {
     }
 
     @Transactional
-    public BookingResponse cancel(Long id) {
+    public BookingResponse cancel(Long id, Long currentUserId) {
         Booking booking = getBookingOrThrow(id);
+        requireOwner(booking, currentUserId);
         if (booking.getStatus() != BookingStatus.PENDING) {
             throw new BookingConflictException("Chi huy duoc booking dang o trang thai PENDING");
         }
@@ -94,8 +97,9 @@ public class BookingService {
     }
 
     @Transactional(readOnly = true)
-    public TicketResponse getTicket(Long id) {
+    public TicketResponse getTicket(Long id, Long currentUserId) {
         Booking booking = getBookingOrThrow(id);
+        requireOwner(booking, currentUserId);
         if (booking.getStatus() != BookingStatus.PAID || booking.getTicketCode() == null) {
             throw new BookingConflictException("Booking chua thanh toan, chua co ve");
         }
@@ -123,6 +127,14 @@ public class BookingService {
     private Booking getBookingOrThrow(Long id) {
         return bookingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay booking voi id=" + id));
+    }
+
+    // 404 (khong phai 403) khi khong phai chu booking - khong lo cho nguoi
+    // goi biet booking do co ton tai hay khong.
+    private void requireOwner(Booking booking, Long currentUserId) {
+        if (!booking.getUser().getId().equals(currentUserId)) {
+            throw new ResourceNotFoundException("Khong tim thay booking voi id=" + booking.getId());
+        }
     }
 
     private User getUserOrThrow(Long userId) {

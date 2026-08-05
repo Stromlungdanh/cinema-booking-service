@@ -116,8 +116,8 @@ class BookingServiceTest {
             return booking;
         });
 
-        BookingRequest request = new BookingRequest(1L, 1L, List.of(1L, 2L));
-        BookingResponse response = bookingService.create(request);
+        BookingRequest request = new BookingRequest(1L, List.of(1L, 2L));
+        BookingResponse response = bookingService.create(1L, request);
 
         assertEquals(10L, response.id());
         assertEquals(BookingStatus.PENDING, response.status());
@@ -133,9 +133,9 @@ class BookingServiceTest {
     void create_throwsWhenUserNotFound() {
         when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
-        BookingRequest request = new BookingRequest(99L, 1L, List.of(1L));
+        BookingRequest request = new BookingRequest(1L, List.of(1L));
 
-        assertThrows(ResourceNotFoundException.class, () -> bookingService.create(request));
+        assertThrows(ResourceNotFoundException.class, () -> bookingService.create(99L, request));
     }
 
     @Test
@@ -143,9 +143,9 @@ class BookingServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L)));
         when(showtimeRepository.findById(99L)).thenReturn(Optional.empty());
 
-        BookingRequest request = new BookingRequest(1L, 99L, List.of(1L));
+        BookingRequest request = new BookingRequest(99L, List.of(1L));
 
-        assertThrows(ResourceNotFoundException.class, () -> bookingService.create(request));
+        assertThrows(ResourceNotFoundException.class, () -> bookingService.create(1L, request));
     }
 
     @Test
@@ -159,9 +159,9 @@ class BookingServiceTest {
         when(showtimeRepository.findById(1L)).thenReturn(Optional.of(showtime));
         when(seatRepository.findAllById(List.of(5L))).thenReturn(List.of(seatInOtherRoom));
 
-        BookingRequest request = new BookingRequest(1L, 1L, List.of(5L));
+        BookingRequest request = new BookingRequest(1L, List.of(5L));
 
-        assertThrows(ResourceNotFoundException.class, () -> bookingService.create(request));
+        assertThrows(ResourceNotFoundException.class, () -> bookingService.create(1L, request));
     }
 
     @Test
@@ -175,16 +175,31 @@ class BookingServiceTest {
         when(seatRepository.findAllById(List.of(1L))).thenReturn(List.of(seat));
         when(bookingSeatRepository.findBookedSeatIds(any(), anyList(), anyList())).thenReturn(List.of(1L));
 
-        BookingRequest request = new BookingRequest(1L, 1L, List.of(1L));
+        BookingRequest request = new BookingRequest(1L, List.of(1L));
 
-        assertThrows(BookingConflictException.class, () -> bookingService.create(request));
+        assertThrows(BookingConflictException.class, () -> bookingService.create(1L, request));
     }
 
     @Test
     void findById_throwsWhenMissing() {
         when(bookingRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> bookingService.findById(99L));
+        assertThrows(ResourceNotFoundException.class, () -> bookingService.findById(99L, 1L));
+    }
+
+    @Test
+    void findById_throwsWhenNotOwner() {
+        Room room = room(1L, "Phong 1");
+        Showtime showtime = showtime(1L, room, "90000");
+        Booking booking = new Booking();
+        booking.setId(1L);
+        booking.setUser(user(1L));
+        booking.setShowtime(showtime);
+        booking.setStatus(BookingStatus.PENDING);
+        booking.setTotalPrice(new BigDecimal("90000"));
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+
+        assertThrows(ResourceNotFoundException.class, () -> bookingService.findById(1L, 2L));
     }
 
     @Test
@@ -225,7 +240,7 @@ class BookingServiceTest {
         booking.setTotalPrice(new BigDecimal("90000"));
         when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
 
-        BookingResponse response = bookingService.cancel(1L);
+        BookingResponse response = bookingService.cancel(1L, 1L);
 
         assertEquals(BookingStatus.CANCELLED, response.status());
     }
@@ -242,7 +257,22 @@ class BookingServiceTest {
         booking.setTotalPrice(new BigDecimal("90000"));
         when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
 
-        assertThrows(BookingConflictException.class, () -> bookingService.cancel(1L));
+        assertThrows(BookingConflictException.class, () -> bookingService.cancel(1L, 1L));
+    }
+
+    @Test
+    void cancel_throwsWhenNotOwner() {
+        Room room = room(1L, "Phong 1");
+        Showtime showtime = showtime(1L, room, "90000");
+        Booking booking = new Booking();
+        booking.setId(1L);
+        booking.setUser(user(1L));
+        booking.setShowtime(showtime);
+        booking.setStatus(BookingStatus.PENDING);
+        booking.setTotalPrice(new BigDecimal("90000"));
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+
+        assertThrows(ResourceNotFoundException.class, () -> bookingService.cancel(1L, 2L));
     }
 
     @Test
@@ -258,7 +288,7 @@ class BookingServiceTest {
         booking.setTicketCode("CB-ABCD1234");
         when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
 
-        TicketResponse ticket = bookingService.getTicket(1L);
+        TicketResponse ticket = bookingService.getTicket(1L, 1L);
 
         assertEquals("CB-ABCD1234", ticket.ticketCode());
         assertEquals(1L, ticket.bookingId());
@@ -277,6 +307,22 @@ class BookingServiceTest {
         booking.setTotalPrice(new BigDecimal("90000"));
         when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
 
-        assertThrows(BookingConflictException.class, () -> bookingService.getTicket(1L));
+        assertThrows(BookingConflictException.class, () -> bookingService.getTicket(1L, 1L));
+    }
+
+    @Test
+    void getTicket_throwsWhenNotOwner() {
+        Room room = room(1L, "Phong 1");
+        Showtime showtime = showtime(1L, room, "90000");
+        Booking booking = new Booking();
+        booking.setId(1L);
+        booking.setUser(user(1L));
+        booking.setShowtime(showtime);
+        booking.setStatus(BookingStatus.PAID);
+        booking.setTotalPrice(new BigDecimal("90000"));
+        booking.setTicketCode("CB-ABCD1234");
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+
+        assertThrows(ResourceNotFoundException.class, () -> bookingService.getTicket(1L, 2L));
     }
 }

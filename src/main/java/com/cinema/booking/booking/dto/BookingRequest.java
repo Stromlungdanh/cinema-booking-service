@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record BookingRequest(
-        @NotNull(message = "userId khong duoc de trong") Long userId,
         @NotNull(message = "showtimeId khong duoc de trong") Long showtimeId,
         @NotEmpty(message = "Phai chon it nhat 1 ghe") List<Long> seatIds
 ) {

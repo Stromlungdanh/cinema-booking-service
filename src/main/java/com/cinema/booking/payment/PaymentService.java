@@ -26,7 +26,7 @@ public class PaymentService {
     // muc tieu la co du luong PENDING -> PAID + sinh ve/QR, chua phai tich
     // hop payment that (de danh Giai doan 3).
     @Transactional
-    public PaymentResponse pay(PaymentRequest request) {
+    public PaymentResponse pay(Long currentUserId, PaymentRequest request) {
         Payment existing = paymentRepository.findByIdempotencyKey(request.idempotencyKey()).orElse(null);
         if (existing != null) {
             if (!existing.getBooking().getId().equals(request.bookingId())) {
@@ -37,6 +37,9 @@ public class PaymentService {
         }
 
         Booking booking = getBookingOrThrow(request.bookingId());
+        if (!booking.getUser().getId().equals(currentUserId)) {
+            throw new ResourceNotFoundException("Khong tim thay booking voi id=" + request.bookingId());
+        }
         if (booking.getStatus() != BookingStatus.PENDING) {
             throw new BookingConflictException("Chi thanh toan duoc booking dang o trang thai PENDING");
         }

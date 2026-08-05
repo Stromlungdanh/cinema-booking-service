@@ -2,6 +2,8 @@ package com.cinema.booking.user;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -13,8 +15,8 @@ import lombok.Setter;
 import java.time.OffsetDateTime;
 
 // Entity toi thieu map bang "users" (co san tu V1) - chi du de Booking
-// co @ManyToOne User hop le. Chua co Service/Controller/DTO rieng, se
-// lam day du khi den muc Spring Security + JWT trong checklist.
+// co @ManyToOne User hop le, va gio la doi tuong xac thuc cho Spring
+// Security + JWT.
 @Entity
 @Table(name = "users")
 @Getter
@@ -41,8 +43,9 @@ public class User {
     @Column(name = "provider_id")
     private String providerId;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private String role = "USER";
+    private UserRole role = UserRole.USER;
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;

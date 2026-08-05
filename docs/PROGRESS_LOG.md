@@ -36,6 +36,10 @@ timeline
     section 2026-08-04 — Payment gia lap
         Payment bypass : idempotency_key chong double-charge : booking PENDING - PAID : ticket_code + QR that (ZXing) : test (139 test)
         Postman - Payment folder : pay/replay/get ticket
+    section 2026-08-05 — Spring Security + JWT
+        JWT login thuong : register/login : UserRole enum : SecurityFilterChain permitAll/authenticated/hasRole(ADMIN)
+        Booking/Payment dung JWT principal thay userId client-supplied : ownership check 404 : test (160 test)
+        Postman - Auth folder : bearer {{authToken}}/{{adminAuthToken}} ke thua/override theo folder
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -763,6 +767,126 @@ key).
 
 **Trạng thái:** chưa commit (untracked/modified — cùng đợt với
 `V4__seed_demo_users.sql` và phần Postman Booking từ phiên trước).
+
+</details>
+
+<details>
+<summary><strong>2026-08-05 — Spring Security + JWT (login thường)</strong> — đăng ký/đăng nhập email-password, phân quyền `hasRole("ADMIN")`, Booking/Payment dùng JWT principal thay cho `userId` client-supplied + ownership check</summary>
+
+**Mục đích:** mục tiếp theo trong checklist Giai đoạn 1 sau Payment —
+thêm xác thực/phân quyền cho toàn bộ API, đồng thời vá lỗ hổng đang
+tồn tại: `BookingController`/`PaymentController` tin tưởng hoàn toàn
+`userId`/`bookingId` client tự gửi, không biết "người gọi API là ai".
+
+**Đã làm:**
+- `pom.xml`: `spring-boot-starter-security`, `io.jsonwebtoken:jjwt-{api,impl,jackson}`
+  0.12.6 (sinh/verify JWT), `spring-security-test` (scope test, cho
+  `@WithMockUser`). `application.yml` thêm block `jwt.secret`/
+  `jwt.expiration-ms` (đọc từ env var, mặc định dev-only, đúng convention
+  `${VAR:default}` đã dùng cho DB).
+- `user/UserRole.java` (enum `USER, ADMIN`) — `User.role` đổi từ
+  `String` sang enum (`@Enumerated(STRING)`), đúng pattern
+  `MovieStatus`/`BookingStatus`/`PaymentStatus`, khớp `CHECK` constraint
+  sẵn có. `UserRepository` thêm `findByEmail`/`existsByEmail`.
+- `security/` (hạ tầng JWT, stateless — không load lại `User` từ DB mỗi
+  request): `JwtService` (sinh/parse token bằng jjwt, claim `email`/`role`),
+  `UserPrincipal` (record `id, email, role` — dùng làm
+  `Authentication.getPrincipal()`), `JwtAuthenticationFilter`
+  (`OncePerRequestFilter`, đọc header `Authorization: Bearer`),
+  `SecurityConfig` (`PasswordEncoder` bean = `BCryptPasswordEncoder`,
+  `SecurityFilterChain`: CSRF off, `STATELESS`, `permitAll` cho
+  `/api/auth/**` + `/api/health` + `GET` của các endpoint public hiện có
+  + Swagger, `hasRole("ADMIN")` cho `/api/admin/**`, còn lại
+  `authenticated()`; `authenticationEntryPoint`/`accessDeniedHandler`
+  tùy chỉnh trả `ApiError` JSON thay vì trang lỗi mặc định).
+- `auth/` (đăng ký/đăng nhập): `AuthController` (`/api/auth/register`,
+  `/api/auth/login`), `AuthService` (`register` hash password + lưu
+  `User` role mặc định `USER`; `login` verify password, sinh token),
+  DTO `RegisterRequest`/`LoginRequest`/`AuthResponse`.
+- `common/exception`: `InvalidCredentialsException` (401),
+  `EmailAlreadyExistsException` (409), wire vào `GlobalExceptionHandler`.
+- `BookingRequest` bỏ field `userId`. `BookingController`/
+  `PaymentController` dùng `@AuthenticationPrincipal UserPrincipal` lấy
+  `userId` thay vì client gửi. `BookingController.findByUser` bỏ query
+  param `userId`, trả lịch sử của chính người gọi (`GET /api/bookings`).
+- **Ownership check** (đã hỏi và xác nhận làm luôn cùng task này, xem
+  `AskUserQuestion` trong phiên): `BookingService.findById/cancel/getTicket`
+  và `PaymentService.pay` kiểm tra `booking.getUser().getId()` khớp
+  `currentUserId`, sai chủ → `ResourceNotFoundException` (404, không
+  lộ việc booking người khác có tồn tại hay không) thay vì 403.
+- `V6__add_passwords_to_seed_users.sql` (migration mới, **không sửa
+  V4** — đã apply, sửa sẽ vỡ checksum Flyway): gán mật khẩu
+  (`Password123!`, hash BCrypt) cho 2 user seed sẵn ở V4, thêm 1 user
+  `ADMIN` demo (`admin@example.com` / `AdminPass123!`) để test
+  `hasRole("ADMIN")` ngay không cần sửa DB tay.
+
+**Quyết định kỹ thuật:**
+- Xác thực JWT hoàn toàn stateless — không dùng `UserDetailsService`/
+  `AuthenticationManager` đầy đủ của Spring Security. `AuthService.login`
+  tự tra `UserRepository` + `PasswordEncoder.matches` thủ công, đơn
+  giản hơn bộ máy `DaoAuthenticationProvider` mà dự án ở quy mô này
+  chưa cần.
+- Rule phân quyền tập trung ở `SecurityConfig` theo prefix URL
+  (`requestMatchers("/api/admin/**").hasRole("ADMIN")`) thay vì rải
+  `@PreAuthorize` trên từng admin controller — DRY, đúng tiền lệ
+  "central config hơn lặp lại" của dự án, và khớp đúng cách ROADMAP
+  diễn đạt ("hasRole").
+- `JwtAuthenticationFilter` cố tình **không** đánh dấu `@Component` —
+  `@WebMvcTest` vẫn "thấy" các bean implement `Filter` dù chỉ test
+  web-slice (`WebMvcTypeExcludeFilter` cho các bean này đi qua), kéo
+  theo 63 test lỗi `NoSuchBeanDefinitionException` vì thiếu `JwtService`
+  trong context test. Sửa bằng cách để `SecurityConfig` tự
+  `new JwtAuthenticationFilter(jwtService)` thay vì để Spring quản lý —
+  16 file `*ControllerTest` hiện có không phải khai báo thêm
+  `@MockBean JwtService` không liên quan gì đến logic đang test.
+- 16 file `*ControllerTest` (Movie, Brand, Cinema, Room, SeatType, Seat,
+  Showtime, Genre, Actor + các biến thể Public) thêm
+  `@AutoConfigureMockMvc(addFilters = false)` — tắt toàn bộ filter
+  chain trong slice test, giữ đúng phạm vi test cũ là "logic
+  controller", không phải "có đăng nhập đúng hay không".
+  `BookingControllerTest`/`PaymentControllerTest` cần set
+  `SecurityContextHolder` **thủ công** trong `@BeforeEach`/`@AfterEach`
+  (không dùng `.with(authentication(...))` của `spring-security-test` —
+  post-processor đó cần filter chain thật để áp dụng, mà filter đang bị
+  tắt; set trực tiếp trên thread test hoạt động vì `MockMvc.perform()`
+  chạy đồng bộ).
+- Verify rule phân quyền **thật** (không `addFilters=false`) bằng 1
+  test slice riêng (`SecurityConfigAccessTest`,
+  `@WebMvcTest({BrandController.class, MoviePublicController.class})`
+  + `@Import(SecurityConfig.class)`) dùng `@WithMockUser` (set
+  `SecurityContext` trước khi filter chain chạy, không cần header
+  Authorization thật) — verify 401 (anonymous)/403 (role sai)/200
+  (đúng role) trên `/api/admin/brands`, và public endpoint không cần
+  token.
+
+**Test:** `JwtServiceTest` (round-trip claim, token hết hạn, sai chữ
+ký), `AuthServiceTest` (Mockito: register hash + lưu đúng, trùng email,
+login đúng/sai mật khẩu), `AuthControllerTest` (`@WebMvcTest`,
+`addFilters=false`), `SecurityConfigAccessTest` (test slice rule phân
+quyền thật, mục trên). `BookingServiceTest`/`PaymentServiceTest` thêm
+case ownership (đúng chủ pass, sai chủ ném `ResourceNotFoundException`).
+Tổng `mvn test`: 160 test, 0 fail/error, `BUILD SUCCESS`.
+
+**Smoke-test thủ công:** chạy app thật (`mvn spring-boot:run`, Postgres
+từ docker-compose đang chạy sẵn) qua `curl`: register (201 + token) →
+trùng email (409) → login sai/đúng mật khẩu (401/200) → public
+`/api/movies` không token (200) → `/api/admin/brands` không token
+(401), token USER (403), token ADMIN — seed từ V6 (200) → tạo booking
+bằng token (không gửi `userId`, đúng `userId` lấy từ JWT) → user khác
+xem/thanh toán booking đó (404, ownership check) → chủ booking thanh
+toán + xem vé thành công → lịch sử booking không cần query param. Đã
+tắt app sau khi test xong.
+
+**Postman:** thêm folder "Auth" (Register demo, Login → lưu
+`{{authToken}}`, Login as Admin → lưu `{{adminAuthToken}}`, Login sai
+mật khẩu). Auth kiểu `bearer {{authToken}}` đặt ở **mức collection**
+(Booking/Payment kế thừa), override `bearer {{adminAuthToken}}` ở từng
+folder "Admin - ...", `noauth` ở "Health"/"Public - ..."/"Auth". Bỏ
+`userId` khỏi body Create Booking và query param của Booking History —
+xoá luôn hướng dẫn tra `{{userId}}` qua psql trong description collection
+(không còn cần thiết).
+
+**Trạng thái:** chưa commit.
 
 </details>
 

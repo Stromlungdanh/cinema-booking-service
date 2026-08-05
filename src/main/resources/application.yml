@@ -34,3 +34,9 @@ server:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+# Chi dung cho local/dev. JWT_SECRET can >= 32 ky tu (HS256) - doi bang
+# bien moi truong that khi len moi truong khac localhost.
+jwt:
+  secret: ${JWT_SECRET:dev-only-local-secret-change-me-in-prod-32bytes+}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}

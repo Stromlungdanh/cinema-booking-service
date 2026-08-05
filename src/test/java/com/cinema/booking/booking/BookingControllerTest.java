@@ -6,12 +6,19 @@ import com.cinema.booking.booking.dto.BookingSeatResponse;
 import com.cinema.booking.booking.dto.TicketResponse;
 import com.cinema.booking.common.exception.BookingConflictException;
 import com.cinema.booking.common.exception.ResourceNotFoundException;
+import com.cinema.booking.security.UserPrincipal;
+import com.cinema.booking.user.UserRole;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -28,7 +35,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(BookingController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class BookingControllerTest {
+
+    private static final Long CURRENT_USER_ID = 1L;
 
     @Autowired
     private MockMvc mockMvc;
@@ -39,8 +49,26 @@ class BookingControllerTest {
     @MockBean
     private BookingService bookingService;
 
+    // addFilters=false tat JwtAuthenticationFilter nen khong ai set
+    // SecurityContext ho. MockMvc.perform() chay dong bo tren cung thread
+    // test nen set truc tiep SecurityContextHolder o day la du de
+    // @AuthenticationPrincipal trong BookingController khong bi null -
+    // .with(authentication(...)) cua spring-security-test KHONG dung duoc
+    // vi no can filter chain that (dang bi tat) de ap dung.
+    @BeforeEach
+    void setUpAuthentication() {
+        UserPrincipal principal = new UserPrincipal(CURRENT_USER_ID, "user@example.com", UserRole.USER);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(principal, null, List.of()));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
+
     private BookingRequest validRequest() {
-        return new BookingRequest(1L, 1L, List.of(1L, 2L));
+        return new BookingRequest(1L, List.of(1L, 2L));
     }
 
     private BookingResponse sampleResponse(Long id, BookingStatus status) {
@@ -58,7 +86,7 @@ class BookingControllerTest {
 
     @Test
     void create_returns201WithBody() throws Exception {
-        when(bookingService.create(any())).thenReturn(sampleResponse(1L, BookingStatus.PENDING));
+        when(bookingService.create(eq(CURRENT_USER_ID), any())).thenReturn(sampleResponse(1L, BookingStatus.PENDING));
 
         mockMvc.perform(post("/api/bookings")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -71,7 +99,7 @@ class BookingControllerTest {
 
     @Test
     void create_returns400WhenSeatIdsEmpty() throws Exception {
-        BookingRequest invalid = new BookingRequest(1L, 1L, List.of());
+        BookingRequest invalid = new BookingRequest(1L, List.of());
 
         mockMvc.perform(post("/api/bookings")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -82,7 +110,7 @@ class BookingControllerTest {
 
     @Test
     void create_returns409WhenSeatAlreadyBooked() throws Exception {
-        when(bookingService.create(any()))
+        when(bookingService.create(eq(CURRENT_USER_ID), any()))
                 .thenThrow(new BookingConflictException("Ghe da duoc dat: [1]"));
 
         mockMvc.perform(post("/api/bookings")
@@ -94,7 +122,7 @@ class BookingControllerTest {
 
     @Test
     void findById_returns404WhenMissing() throws Exception {
-        when(bookingService.findById(eq(99L)))
+        when(bookingService.findById(eq(99L), eq(CURRENT_USER_ID)))
                 .thenThrow(new ResourceNotFoundException("Khong tim thay booking voi id=99"));
 
         mockMvc.perform(get("/api/bookings/99"))
@@ -103,17 +131,17 @@ class BookingControllerTest {
     }
 
     @Test
-    void findByUser_returns200WithList() throws Exception {
-        when(bookingService.findByUser(1L)).thenReturn(List.of(sampleResponse(1L, BookingStatus.PENDING)));
+    void findByCurrentUser_returns200WithList() throws Exception {
+        when(bookingService.findByUser(CURRENT_USER_ID)).thenReturn(List.of(sampleResponse(1L, BookingStatus.PENDING)));
 
-        mockMvc.perform(get("/api/bookings").param("userId", "1"))
+        mockMvc.perform(get("/api/bookings"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1));
     }
 
     @Test
     void cancel_returns200WithUpdatedStatus() throws Exception {
-        when(bookingService.cancel(1L)).thenReturn(sampleResponse(1L, BookingStatus.CANCELLED));
+        when(bookingService.cancel(1L, CURRENT_USER_ID)).thenReturn(sampleResponse(1L, BookingStatus.CANCELLED));
 
         mockMvc.perform(patch("/api/bookings/1/cancel"))
                 .andExpect(status().isOk())
@@ -122,7 +150,7 @@ class BookingControllerTest {
 
     @Test
     void cancel_returns409WhenNotPending() throws Exception {
-        when(bookingService.cancel(1L))
+        when(bookingService.cancel(1L, CURRENT_USER_ID))
                 .thenThrow(new BookingConflictException("Chi huy duoc booking dang o trang thai PENDING"));
 
         mockMvc.perform(patch("/api/bookings/1/cancel"))
@@ -137,7 +165,7 @@ class BookingControllerTest {
                 OffsetDateTime.parse("2026-08-01T10:00:00+07:00"),
                 List.of(new BookingSeatResponse(1L, "A", 1, new BigDecimal("90000.00")))
         );
-        when(bookingService.getTicket(1L)).thenReturn(ticket);
+        when(bookingService.getTicket(1L, CURRENT_USER_ID)).thenReturn(ticket);
 
         mockMvc.perform(get("/api/bookings/1/ticket"))
                 .andExpect(status().isOk())
@@ -147,7 +175,7 @@ class BookingControllerTest {
 
     @Test
     void getTicket_returns409WhenNotPaid() throws Exception {
-        when(bookingService.getTicket(1L))
+        when(bookingService.getTicket(1L, CURRENT_USER_ID))
                 .thenThrow(new BookingConflictException("Booking chua thanh toan, chua co ve"));
 
         mockMvc.perform(get("/api/bookings/1/ticket"))
