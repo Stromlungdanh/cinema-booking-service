@@ -117,7 +117,7 @@ Checklist:
 - [x] Payment giả lập (bypass, sinh `idempotency_key`) + sinh ticket/QR
 - [x] Spring Security + JWT (login thường), phân quyền `hasRole("ADMIN")` cho các controller admin
 - [ ] Login Google / SSO
-- [ ] Quên mật khẩu / đặt lại mật khẩu (`/api/auth/forgot-password`, `/api/auth/reset-password`) — sinh reset token có TTL (lưu DB hoặc Redis), cần cơ chế gửi email (SMTP thật hoặc log ra console ở dev vì chưa có hạ tầng email)
+- [x] Quên mật khẩu / đặt lại mật khẩu (`/api/auth/forgot-password`, `/api/auth/reset-password`) — reset token TTL 30 phút lưu bảng Postgres `password_reset_tokens`, gửi "email" bằng log ra console (dev, chưa có SMTP thật)
 - [x] Admin quản lý User (`/api/admin/users`): list, xem chi tiết, đổi role, khoá/mở tài khoản
 - [x] Admin quản lý Booking (`/api/admin/bookings`): xem toàn bộ booking (lọc theo status/user/showtime), huỷ hộ
 
@@ -184,22 +184,28 @@ khoá/tự hạ role chính mình, tài khoản bị khoá không đăng nhập 
 **Admin quản lý Booking** (`/api/admin/bookings`: xem toàn bộ booking
 mọi user có lọc theo status/user/showtime, huỷ hộ — tái dùng
 `BookingService`/`BookingResponse` có sẵn, không tạo service/DTO
-riêng). `mvn test` pass (185 test).
+riêng). Đã có **Quên mật khẩu/đặt lại mật khẩu** cho luồng đăng nhập
+thường (`/api/auth/forgot-password`, `/api/auth/reset-password`):
+reset token (`SecureRandom`, TTL 30 phút) lưu bảng `password_reset_tokens`
+(Postgres, không dùng Redis vì chưa có dependency và Redis đã dành cho
+seat-hold Giai đoạn 2), "gửi email" tạm thời bằng log ra console (dev,
+chưa có SMTP thật). `forgotPassword` không throw khi email không tồn
+tại để chống dò email đã đăng ký. `mvn test` pass (195 test).
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).
 
 ## 7. Sắp tới làm gì (ngay tiếp theo)
 
-Admin quản lý User + Booking đã xong. Giai đoạn 1 còn 2 việc, làm theo
-thứ tự nào cũng được trước khi coi Giai đoạn 1 "xong":
+Quên mật khẩu/đặt lại mật khẩu đã xong. Giai đoạn 1 còn 1 việc:
 - **Login Google / SSO** (OAuth2/OIDC) — tận dụng cột `provider`/
   `provider_id` đã có sẵn trên `User`.
-- **Quên mật khẩu / đặt lại mật khẩu** — cần quyết định cơ chế gửi
-  email trước khi code (SMTP thật hay log console cho dev).
 
-Sau khi xong cả 2 (hoặc thấy đủ để coi Giai đoạn 1 hoàn tất), chuyển
-sang Giai đoạn 2 (concurrency & transaction).
+Sau khi xong (hoặc thấy đủ để coi Giai đoạn 1 hoàn tất), chuyển sang
+Giai đoạn 2 (concurrency & transaction). Frontend tối thiểu cho luồng
+chính (mục 3) có thể bắt đầu song song ngay từ bây giờ — các API cần
+thiết (auth thường, movies/brands/cinemas/showtimes/seats, booking,
+payment, ticket) đã đầy đủ; SSO chỉ ảnh hưởng 1 màn hình phụ.
 
 ## 8. Quy ước cập nhật tài liệu này
 

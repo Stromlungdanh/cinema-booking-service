@@ -1,10 +1,13 @@
 package com.cinema.booking.auth;
 
 import com.cinema.booking.auth.dto.AuthResponse;
+import com.cinema.booking.auth.dto.ForgotPasswordRequest;
 import com.cinema.booking.auth.dto.LoginRequest;
 import com.cinema.booking.auth.dto.RegisterRequest;
+import com.cinema.booking.auth.dto.ResetPasswordRequest;
 import com.cinema.booking.common.exception.EmailAlreadyExistsException;
 import com.cinema.booking.common.exception.InvalidCredentialsException;
+import com.cinema.booking.common.exception.InvalidResetTokenException;
 import com.cinema.booking.security.JwtService;
 import com.cinema.booking.user.User;
 import com.cinema.booking.user.UserRepository;
@@ -17,11 +20,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,6 +36,9 @@ class AuthServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -126,5 +135,83 @@ class AuthServiceTest {
         LoginRequest request = new LoginRequest("user@example.com", "wrong-password");
 
         assertThrows(InvalidCredentialsException.class, () -> authService.login(request));
+    }
+
+    @Test
+    void forgotPassword_savesTokenWhenEmailExists() {
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("user@example.com");
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+
+        authService.forgotPassword(new ForgotPasswordRequest("user@example.com"));
+
+        ArgumentCaptor<PasswordResetToken> captor = ArgumentCaptor.forClass(PasswordResetToken.class);
+        verify(passwordResetTokenRepository).save(captor.capture());
+        assertEquals(user, captor.getValue().getUser());
+        assertNotNull(captor.getValue().getToken());
+    }
+
+    @Test
+    void forgotPassword_doesNothingWhenEmailNotFound() {
+        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+
+        authService.forgotPassword(new ForgotPasswordRequest("missing@example.com"));
+
+        verify(passwordResetTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void resetPassword_updatesPasswordWhenTokenValid() {
+        User user = new User();
+        user.setId(1L);
+        user.setPasswordHash("old-hash");
+        PasswordResetToken resetToken = new PasswordResetToken();
+        resetToken.setUser(user);
+        resetToken.setToken("valid-token");
+        resetToken.setExpiresAt(OffsetDateTime.now().plusMinutes(10));
+        when(passwordResetTokenRepository.findByToken("valid-token")).thenReturn(Optional.of(resetToken));
+        when(passwordEncoder.encode("NewPassword123!")).thenReturn("new-hash");
+
+        authService.resetPassword(new ResetPasswordRequest("valid-token", "NewPassword123!"));
+
+        assertEquals("new-hash", user.getPasswordHash());
+        assertNotNull(resetToken.getUsedAt());
+    }
+
+    @Test
+    void resetPassword_throwsWhenTokenNotFound() {
+        when(passwordResetTokenRepository.findByToken("missing-token")).thenReturn(Optional.empty());
+
+        ResetPasswordRequest request = new ResetPasswordRequest("missing-token", "NewPassword123!");
+
+        assertThrows(InvalidResetTokenException.class, () -> authService.resetPassword(request));
+    }
+
+    @Test
+    void resetPassword_throwsWhenTokenExpired() {
+        PasswordResetToken resetToken = new PasswordResetToken();
+        resetToken.setUser(new User());
+        resetToken.setToken("expired-token");
+        resetToken.setExpiresAt(OffsetDateTime.now().minusMinutes(1));
+        when(passwordResetTokenRepository.findByToken("expired-token")).thenReturn(Optional.of(resetToken));
+
+        ResetPasswordRequest request = new ResetPasswordRequest("expired-token", "NewPassword123!");
+
+        assertThrows(InvalidResetTokenException.class, () -> authService.resetPassword(request));
+    }
+
+    @Test
+    void resetPassword_throwsWhenTokenAlreadyUsed() {
+        PasswordResetToken resetToken = new PasswordResetToken();
+        resetToken.setUser(new User());
+        resetToken.setToken("used-token");
+        resetToken.setExpiresAt(OffsetDateTime.now().plusMinutes(10));
+        resetToken.setUsedAt(OffsetDateTime.now().minusMinutes(1));
+        when(passwordResetTokenRepository.findByToken("used-token")).thenReturn(Optional.of(resetToken));
+
+        ResetPasswordRequest request = new ResetPasswordRequest("used-token", "NewPassword123!");
+
+        assertThrows(InvalidResetTokenException.class, () -> authService.resetPassword(request));
     }
 }

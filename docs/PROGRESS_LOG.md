@@ -42,6 +42,8 @@ timeline
         Postman - Auth folder : bearer {{authToken}}/{{adminAuthToken}} ke thua/override theo folder
         Admin quan ly User : cot active : lock/unlock/doi role : chan self-lockout (409)
         Admin quan ly Booking : xem/loc/huy booking moi user : tai dung BookingService : test (185 test)
+    section 2026-08-06 — Quen mat khau
+        Quen/dat lai mat khau (luong thuong) : password_reset_tokens (Postgres, TTL 30p) : gui "email" bang log console : test (195 test)
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -994,7 +996,63 @@ as Admin" (folder Auth) sửa Tests script lưu thêm `{{adminUserId}}`
 tiên lưu id 1 user **không phải ADMIN** vào `{{targetUserId}}` (tránh
 demo nhầm lên chính tài khoản admin đang dùng).
 
-**Trạng thái:** chưa commit.
+**Trạng thái:** đã commit (hash 9cc4f47).
+
+</details>
+
+<details>
+<summary><strong>2026-08-06 — Quên mật khẩu / đặt lại mật khẩu (luồng thường)</strong> — reset token lưu Postgres, TTL 30 phút, gửi "email" bằng cách log ra console (dev)</summary>
+
+**Mục đích:** hoàn thành nốt 1 trong 2 việc còn lại của Giai đoạn 1
+(mục 7 ROADMAP) cho luồng đăng nhập thường (email/password) — Google/SSO
+để làm sau.
+
+**Đã làm:**
+- `db/migration/V8__add_password_reset_tokens.sql` (mới) — bảng
+  `password_reset_tokens` (`user_id` FK `ON DELETE CASCADE`, `token`
+  UNIQUE, `expires_at`, `used_at`, `created_at`), index trên `user_id`.
+- `auth/PasswordResetToken.java` + `auth/PasswordResetTokenRepository.java`
+  (mới) — entity/repo tối giản cùng style `User`/`UserRepository`.
+- `common/util/PasswordResetTokenGenerator.java` (mới) — `SecureRandom`
+  32 byte + Base64 URL-safe (entropy cao, khác `TicketCodeGenerator` là
+  mã ngắn dễ đọc cho vé).
+- `common/exception/InvalidResetTokenException.java` (mới) → 400, wire
+  vào `GlobalExceptionHandler`.
+- `auth/dto/ForgotPasswordRequest.java`, `auth/dto/ResetPasswordRequest.java`
+  (mới).
+- `AuthService`: thêm `forgotPassword()` (tìm user theo email, nếu có
+  thì sinh token TTL 30 phút, lưu, log ra console dạng
+  `Reset password token cho {email}: {token}`) và `resetPassword()`
+  (validate token tồn tại/chưa hết hạn/chưa dùng → đổi `passwordHash`,
+  đánh dấu `usedAt`).
+- `AuthController`: thêm `POST /api/auth/forgot-password`,
+  `POST /api/auth/reset-password` — không cần sửa `SecurityConfig` vì
+  `/api/auth/**` đã `permitAll()` sẵn.
+
+**Quyết định kỹ thuật:**
+- **Gửi email = log console**, chưa tích hợp SMTP thật — quyết định
+  cùng user trước khi code, đúng như ROADMAP đã lường trước. Nâng cấp
+  lên SMTP thật (`spring-boot-starter-mail`) là việc độc lập, không đổi
+  API contract khi làm sau.
+- **Lưu token ở Postgres**, không dùng Redis dù `docker-compose.yml` đã
+  có sẵn Redis — vì `pom.xml` chưa có `spring-boot-starter-data-redis`,
+  và roadmap đã dành Redis cho seat-hold ở Giai đoạn 2; dùng bảng riêng
+  tránh phải thêm dependency mới chỉ cho tính năng này.
+- `forgotPassword()` **không throw** khi email không tồn tại (luôn trả
+  200) — chống dò xem email nào đã đăng ký (user enumeration), khác hẳn
+  `login()` là throw ngay vì đó là chính chủ tự nhập sai.
+- TTL token cố định 30 phút, hard-code hằng số trong `AuthService`
+  (`RESET_TOKEN_TTL_MINUTES`) — chưa cần cấu hình được vì quy mô học
+  tập, không phải multi-tenant.
+
+**Test:** case mới trong `AuthServiceTest` (`forgotPassword` — lưu token
+khi email tồn tại / không làm gì khi email không tồn tại;
+`resetPassword` — đổi password thành công / throw khi token không tồn
+tại / hết hạn / đã dùng) và `AuthControllerTest` (`forgot-password` 200
++ 400 khi email sai format; `reset-password` 200 + 400 khi token không
+hợp lệ). Tổng `mvn test`: 195 test, 0 fail/error, `BUILD SUCCESS`.
+
+**Trạng thái:** đã chạy `mvn test` pass, chưa commit.
 
 </details>
 

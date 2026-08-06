@@ -1,8 +1,10 @@
 package com.cinema.booking.auth;
 
 import com.cinema.booking.auth.dto.AuthResponse;
+import com.cinema.booking.auth.dto.ForgotPasswordRequest;
 import com.cinema.booking.auth.dto.LoginRequest;
 import com.cinema.booking.auth.dto.RegisterRequest;
+import com.cinema.booking.auth.dto.ResetPasswordRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,5 +30,17 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok().build();
     }
 }

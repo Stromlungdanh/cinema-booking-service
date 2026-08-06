@@ -1,10 +1,13 @@
 package com.cinema.booking.auth;
 
 import com.cinema.booking.auth.dto.AuthResponse;
+import com.cinema.booking.auth.dto.ForgotPasswordRequest;
 import com.cinema.booking.auth.dto.LoginRequest;
 import com.cinema.booking.auth.dto.RegisterRequest;
+import com.cinema.booking.auth.dto.ResetPasswordRequest;
 import com.cinema.booking.common.exception.EmailAlreadyExistsException;
 import com.cinema.booking.common.exception.InvalidCredentialsException;
+import com.cinema.booking.common.exception.InvalidResetTokenException;
 import com.cinema.booking.user.UserRole;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -16,6 +19,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -95,5 +100,46 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new LoginRequest("user@example.com", "wrong-password"))))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void forgotPassword_returns200() throws Exception {
+        doNothing().when(authService).forgotPassword(any());
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ForgotPasswordRequest("user@example.com"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void forgotPassword_returns400WhenEmailInvalid() throws Exception {
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ForgotPasswordRequest("not-an-email"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void resetPassword_returns200() throws Exception {
+        doNothing().when(authService).resetPassword(any());
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ResetPasswordRequest("valid-token", "NewPassword123!"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void resetPassword_returns400WhenTokenInvalid() throws Exception {
+        doThrow(new InvalidResetTokenException("Token khong hop le"))
+                .when(authService).resetPassword(any());
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ResetPasswordRequest("bad-token", "NewPassword123!"))))
+                .andExpect(status().isBadRequest());
     }
 }
