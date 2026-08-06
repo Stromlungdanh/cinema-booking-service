@@ -95,6 +95,15 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- Verify ID token cua Google (Sign in with Google) - tu quan ly
+             fetch/cache/xoay vong public key cua Google, khong tu viet lai
+             JWKS (rui ro bao mat khong can thiet). -->
+        <dependency>
+            <groupId>com.google.api-client</groupId>
+            <artifactId>google-api-client</artifactId>
+            <version>2.7.0</version>
+        </dependency>
+
         <!-- Sinh QR code (PNG) cho ve sau khi thanh toan -->
         <dependency>
             <groupId>com.google.zxing</groupId>

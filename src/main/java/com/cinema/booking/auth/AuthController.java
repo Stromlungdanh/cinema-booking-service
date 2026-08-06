@@ -2,6 +2,7 @@ package com.cinema.booking.auth;
 
 import com.cinema.booking.auth.dto.AuthResponse;
 import com.cinema.booking.auth.dto.ForgotPasswordRequest;
+import com.cinema.booking.auth.dto.GoogleLoginRequest;
 import com.cinema.booking.auth.dto.LoginRequest;
 import com.cinema.booking.auth.dto.RegisterRequest;
 import com.cinema.booking.auth.dto.ResetPasswordRequest;
@@ -30,6 +31,11 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/google")
+    public AuthResponse loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
+        return authService.loginWithGoogle(request);
     }
 
     @PostMapping("/forgot-password")

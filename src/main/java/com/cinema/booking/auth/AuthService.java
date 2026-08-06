@@ -2,6 +2,7 @@ package com.cinema.booking.auth;
 
 import com.cinema.booking.auth.dto.AuthResponse;
 import com.cinema.booking.auth.dto.ForgotPasswordRequest;
+import com.cinema.booking.auth.dto.GoogleLoginRequest;
 import com.cinema.booking.auth.dto.LoginRequest;
 import com.cinema.booking.auth.dto.RegisterRequest;
 import com.cinema.booking.auth.dto.ResetPasswordRequest;
@@ -9,6 +10,8 @@ import com.cinema.booking.common.exception.EmailAlreadyExistsException;
 import com.cinema.booking.common.exception.InvalidCredentialsException;
 import com.cinema.booking.common.exception.InvalidResetTokenException;
 import com.cinema.booking.common.util.PasswordResetTokenGenerator;
+import com.cinema.booking.security.GoogleTokenVerifierService;
+import com.cinema.booking.security.GoogleUserInfo;
 import com.cinema.booking.security.JwtService;
 import com.cinema.booking.user.User;
 import com.cinema.booking.user.UserRepository;
@@ -32,6 +35,7 @@ public class AuthService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final GoogleTokenVerifierService googleTokenVerifierService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -91,6 +95,37 @@ public class AuthService {
         User user = resetToken.getUser();
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         resetToken.setUsedAt(OffsetDateTime.now());
+    }
+
+    @Transactional
+    public AuthResponse loginWithGoogle(GoogleLoginRequest request) {
+        GoogleUserInfo info = googleTokenVerifierService.verify(request.idToken());
+        if (!info.emailVerified()) {
+            throw new InvalidCredentialsException("Email Google chua duoc xac minh");
+        }
+
+        User user = userRepository.findByProviderAndProviderId("GOOGLE", info.providerId())
+                .or(() -> userRepository.findByEmail(info.email()))
+                .orElseGet(() -> {
+                    User newUser = new User();
+                    newUser.setName(info.name() != null ? info.name() : info.email());
+                    newUser.setEmail(info.email());
+                    newUser.setRole(UserRole.USER);
+                    newUser.setCreatedAt(OffsetDateTime.now());
+                    return newUser;
+                });
+
+        if (!user.getActive()) {
+            throw new InvalidCredentialsException("Tai khoan da bi khoa");
+        }
+        // Lan dau dang nhap Google bang 1 email da co san (VD tung dang ky
+        // thuong) - gan provider/providerId, KHONG dong password_hash (van
+        // dang nhap thuong duoc binh thuong).
+        user.setProvider("GOOGLE");
+        user.setProviderId(info.providerId());
+        User saved = userRepository.save(user);
+
+        return toAuthResponse(saved);
     }
 
     private AuthResponse toAuthResponse(User user) {

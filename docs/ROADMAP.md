@@ -94,7 +94,7 @@ Dự án đi theo thứ tự: **chạy được trước, đúng sau, nhanh/an t
 cùng, tách nhỏ cuối cùng.** Đừng nhảy cóc sang giai đoạn sau khi giai
 đoạn trước còn dang dở.
 
-### Giai đoạn 1 — Monolith nền tảng (đang làm)
+### Giai đoạn 1 — Monolith nền tảng (hoàn tất)
 Mục tiêu: 1 Spring Boot app, 1 Postgres DB, đầy đủ CRUD cho các entity
 tĩnh (Movie, Genre, Actor, Brand, Cinema, Room, SeatType, Seat), rồi
 tới luồng nghiệp vụ chính (Showtime, Booking, Payment giả).
@@ -116,7 +116,7 @@ Checklist:
 - [x] Luồng Booking (tạo booking từ ghế đã chọn, tính tiền, trạng thái PENDING/PAID/CANCELLED/EXPIRED)
 - [x] Payment giả lập (bypass, sinh `idempotency_key`) + sinh ticket/QR
 - [x] Spring Security + JWT (login thường), phân quyền `hasRole("ADMIN")` cho các controller admin
-- [ ] Login Google / SSO
+- [x] Login Google / SSO (`/api/auth/google`, ID token flow — verify token bằng `google-api-client`, tìm/tạo/auto-link `User` theo `provider`+`provider_id`)
 - [x] Quên mật khẩu / đặt lại mật khẩu (`/api/auth/forgot-password`, `/api/auth/reset-password`) — reset token TTL 30 phút lưu bảng Postgres `password_reset_tokens`, gửi "email" bằng log ra console (dev, chưa có SMTP thật)
 - [x] Admin quản lý User (`/api/admin/users`): list, xem chi tiết, đổi role, khoá/mở tài khoản
 - [x] Admin quản lý Booking (`/api/admin/bookings`): xem toàn bộ booking (lọc theo status/user/showtime), huỷ hộ
@@ -148,7 +148,7 @@ cùng lúc — đây là phần "học được nhiều nhất" của giai đo�
 
 ## 6. Đang làm tới đâu (snapshot)
 
-Đang ở **Giai đoạn 1**. Đã có CRUD cho toàn bộ entity tĩnh: `Movie`,
+**Giai đoạn 1 đã hoàn tất.** Đã có CRUD cho toàn bộ entity tĩnh: `Movie`,
 `Genre`, `Actor` (+ quan hệ nhiều-nhiều `Movie ↔ Genre`/`Movie ↔ Actor`),
 và nhánh `Brand → Cinema → Room → SeatType`. `Seat` không có CRUD từng
 ghế mà có API "sinh theo sơ đồ phòng" (`POST/GET
@@ -190,22 +190,33 @@ reset token (`SecureRandom`, TTL 30 phút) lưu bảng `password_reset_tokens`
 (Postgres, không dùng Redis vì chưa có dependency và Redis đã dành cho
 seat-hold Giai đoạn 2), "gửi email" tạm thời bằng log ra console (dev,
 chưa có SMTP thật). `forgotPassword` không throw khi email không tồn
-tại để chống dò email đã đăng ký. `mvn test` pass (195 test).
+tại để chống dò email đã đăng ký. Đã có **Login Google/SSO**
+(`/api/auth/google`): ID token flow (frontend lấy ID token từ Google
+Identity Services, gửi lên BE verify) — đúng kiến trúc SPA + REST API
+backend, dùng thư viện chính thức `google-api-client` để verify chữ ký
+(không tự viết JWKS). Tìm user theo `(provider, provider_id)` trước,
+fallback theo email (auto-link tài khoản LOCAL có sẵn cùng email đã
+được Google xác minh, giữ nguyên `password_hash`). Chưa test được với
+token Google thật (cần tạo OAuth Client ID trên Google Cloud Console —
+việc thủ công ngoài phạm vi code, để khi làm frontend). `mvn test` pass
+(203 test).
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).
 
 ## 7. Sắp tới làm gì (ngay tiếp theo)
 
-Quên mật khẩu/đặt lại mật khẩu đã xong. Giai đoạn 1 còn 1 việc:
-- **Login Google / SSO** (OAuth2/OIDC) — tận dụng cột `provider`/
-  `provider_id` đã có sẵn trên `User`.
-
-Sau khi xong (hoặc thấy đủ để coi Giai đoạn 1 hoàn tất), chuyển sang
-Giai đoạn 2 (concurrency & transaction). Frontend tối thiểu cho luồng
-chính (mục 3) có thể bắt đầu song song ngay từ bây giờ — các API cần
-thiết (auth thường, movies/brands/cinemas/showtimes/seats, booking,
-payment, ticket) đã đầy đủ; SSO chỉ ảnh hưởng 1 màn hình phụ.
+**Giai đoạn 1 đã hoàn tất** — toàn bộ checklist đã xong, kể cả Login
+Google/SSO và Quên mật khẩu. Hai hướng có thể làm tiếp, không phụ thuộc
+nhau:
+- **Giai đoạn 2** (concurrency & transaction) — chứng minh hệ thống
+  không bán trùng ghế khi nhiều người đặt cùng lúc.
+- **Frontend tối thiểu** cho luồng chính (mục 3) — toàn bộ API cần
+  thiết đã có (auth thường + Google, movies/brands/cinemas/showtimes/
+  seats, booking, payment, ticket). Riêng nút "Sign in with Google" cần
+  tạo OAuth Client ID thật trên Google Cloud Console trước khi test
+  được (xem `PROGRESS_LOG.md` entry Login Google, mục "Giới hạn đã
+  biết").
 
 ## 8. Quy ước cập nhật tài liệu này
 

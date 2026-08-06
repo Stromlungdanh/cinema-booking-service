@@ -2,6 +2,7 @@ package com.cinema.booking.auth;
 
 import com.cinema.booking.auth.dto.AuthResponse;
 import com.cinema.booking.auth.dto.ForgotPasswordRequest;
+import com.cinema.booking.auth.dto.GoogleLoginRequest;
 import com.cinema.booking.auth.dto.LoginRequest;
 import com.cinema.booking.auth.dto.RegisterRequest;
 import com.cinema.booking.auth.dto.ResetPasswordRequest;
@@ -140,6 +141,36 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new ResetPasswordRequest("bad-token", "NewPassword123!"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void loginWithGoogle_returns200WithToken() throws Exception {
+        when(authService.loginWithGoogle(any())).thenReturn(sampleResponse());
+
+        mockMvc.perform(post("/api/auth/google")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GoogleLoginRequest("valid-id-token"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("fake-jwt"));
+    }
+
+    @Test
+    void loginWithGoogle_returns401WhenTokenInvalid() throws Exception {
+        when(authService.loginWithGoogle(any()))
+                .thenThrow(new InvalidCredentialsException("Google token khong hop le"));
+
+        mockMvc.perform(post("/api/auth/google")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GoogleLoginRequest("bad-token"))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void loginWithGoogle_returns400WhenIdTokenBlank() throws Exception {
+        mockMvc.perform(post("/api/auth/google")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GoogleLoginRequest(""))))
                 .andExpect(status().isBadRequest());
     }
 }

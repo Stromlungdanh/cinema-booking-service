@@ -42,8 +42,9 @@ timeline
         Postman - Auth folder : bearer {{authToken}}/{{adminAuthToken}} ke thua/override theo folder
         Admin quan ly User : cot active : lock/unlock/doi role : chan self-lockout (409)
         Admin quan ly Booking : xem/loc/huy booking moi user : tai dung BookingService : test (185 test)
-    section 2026-08-06 — Quen mat khau
+    section 2026-08-06 — Quen mat khau + Google SSO (het Giai doan 1)
         Quen/dat lai mat khau (luong thuong) : password_reset_tokens (Postgres, TTL 30p) : gui "email" bang log console : test (195 test)
+        Login Google/SSO : ID token flow : GoogleTokenVerifierService : auto-link user LOCAL theo email da xac minh : test (203 test)
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -1051,6 +1052,79 @@ khi email tồn tại / không làm gì khi email không tồn tại;
 tại / hết hạn / đã dùng) và `AuthControllerTest` (`forgot-password` 200
 + 400 khi email sai format; `reset-password` 200 + 400 khi token không
 hợp lệ). Tổng `mvn test`: 195 test, 0 fail/error, `BUILD SUCCESS`.
+
+**Trạng thái:** đã commit (hash 787241e), đã push lên `origin/main`.
+
+</details>
+
+<details>
+<summary><strong>2026-08-06 — Login Google / SSO (ID token flow)</strong> — hoàn tất Giai đoạn 1: verify ID token từ Google bằng thư viện chính thức, tìm/tạo/auto-link User, trả JWT riêng của app</summary>
+
+**Mục đích:** hoàn thành việc cuối cùng còn lại của Giai đoạn 1 (mục 7
+ROADMAP cũ). Backend là REST API JWT thuần stateless, frontend React
+tách riêng (chưa code) — chọn kiến trúc phù hợp thay vì rập khuôn
+"OAuth2 Authorization Code redirect" vốn dành cho app server-rendered.
+
+**Đã làm:**
+- `pom.xml`: thêm `com.google.api-client:google-api-client:2.7.0` — có
+  sẵn `GoogleIdTokenVerifier` tự fetch/cache/xoay vòng public key của
+  Google, không tự viết lại JWKS.
+- `application.yml`: thêm `google.client-id` (đọc từ env var
+  `GOOGLE_CLIENT_ID`, cùng style `jwt.secret`).
+- `security/GoogleUserInfo.java` (mới) — record `providerId, email,
+  name, emailVerified`.
+- `security/GoogleTokenVerifierService.java` (mới) — bọc
+  `GoogleIdTokenVerifier` sau 1 service riêng để `AuthService` không
+  phụ thuộc trực tiếp SDK Google và để mock được trong unit test (không
+  thể tạo ID token thật đã ký bởi Google trong test). Verify thất bại
+  hoặc token null → ném `InvalidCredentialsException` có sẵn (401,
+  không tạo exception mới vì cùng bản chất "không xác thực được").
+- `auth/dto/GoogleLoginRequest.java` (mới) — record `idToken`.
+- `user/UserRepository.java`: thêm `findByProviderAndProviderId(provider, providerId)`.
+- `AuthService.loginWithGoogle()` (mới): verify token → bắt buộc
+  `emailVerified=true` → tìm user theo `(provider, providerId)` trước
+  (định danh bền vững), fallback tìm theo email (lần đầu login Google
+  hoặc auto-link tài khoản LOCAL có sẵn cùng email) → nếu không có thì
+  tạo mới → chặn tài khoản `active=false` giống `login()` → set
+  `provider=GOOGLE`/`providerId` → trả `AuthResponse` (JWT app) y hệt
+  `login()`/`register()`.
+- `AuthController`: thêm `POST /api/auth/google` — không cần sửa
+  `SecurityConfig` vì `/api/auth/**` đã `permitAll()`.
+
+**Quyết định kỹ thuật:**
+- **ID token flow** (frontend lấy ID token từ Google Identity Services,
+  gửi lên BE verify) thay vì Authorization Code redirect flow — đúng
+  kiến trúc SPA + REST API backend, Google khuyến nghị chính thức cho
+  trường hợp này. Redirect flow chỉ cần thiết khi backend phải gọi
+  tiếp API Google thay mặt user (cần refresh token), không áp dụng ở
+  đây vì chỉ cần định danh để login.
+- **Auto-link theo email đã xác minh:** nếu email từ Google trùng với
+  1 user LOCAL có sẵn, gán luôn `provider=GOOGLE`/`providerId` cho user
+  đó thay vì tạo tài khoản trùng — an toàn vì Google đã xác minh quyền
+  sở hữu email (`emailVerified`). **Không xoá** `password_hash` cũ nên
+  user vẫn đăng nhập thường được bình thường sau khi link.
+- Ưu tiên tìm theo `(provider, providerId)` trước email — `providerId`
+  (Google `sub`) là định danh bền vững của 1 tài khoản Google dù sau
+  này đổi email, trong khi tìm theo email trước sẽ sai nếu user đổi
+  email trên Google.
+- Không viết test riêng cho `GoogleTokenVerifierService` — chỉ là lớp
+  bọc mỏng quanh SDK Google, cần ID token thật đã ký bởi Google để test
+  có ý nghĩa (không khả thi trong unit test), tương tự cách
+  `JwtService`/`QrCodeGenerator` không có test verify chữ ký thật.
+
+**Test:** case mới trong `AuthServiceTest` (`loginWithGoogle` — tạo user
+mới / tìm đúng theo `provider+providerId` / auto-link user LOCAL cùng
+email giữ nguyên `passwordHash` / throw khi `emailVerified=false` /
+throw khi tài khoản bị khoá) và `AuthControllerTest` (`/api/auth/google`
+200 khi hợp lệ, 401 khi service throw, 400 khi `idToken` rỗng — mock
+`GoogleTokenVerifierService`/`AuthService`, không cần token thật). Tổng
+`mvn test`: 203 test, 0 fail/error, `BUILD SUCCESS`.
+
+**Giới hạn đã biết:** chưa test end-to-end với token Google thật trong
+phiên này — cần tự tạo OAuth Client ID trên Google Cloud Console (bước
+ngoài phạm vi code, phải làm thủ công trên web Google) và set env var
+`GOOGLE_CLIENT_ID` để tính năng hoạt động với token thật từ 1 nút
+"Sign in with Google" thật (sẽ làm khi bắt đầu code frontend).
 
 **Trạng thái:** đã chạy `mvn test` pass, chưa commit.
 

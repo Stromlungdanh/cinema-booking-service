@@ -40,3 +40,11 @@ springdoc:
 jwt:
   secret: ${JWT_SECRET:dev-only-local-secret-change-me-in-prod-32bytes+}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+# Client ID cua app trong Google Cloud Console (OAuth 2.0 Client IDs,
+# loai "Web application"). Dung chung cho ca FE (xin ID token) va BE
+# (verify audience). Chua co gia tri that - phai tao OAuth Client that
+# tren Google Cloud Console va set bien moi truong GOOGLE_CLIENT_ID de
+# tinh nang "Login Google" hoat dong duoc voi token that.
+google:
+  client-id: ${GOOGLE_CLIENT_ID:}
