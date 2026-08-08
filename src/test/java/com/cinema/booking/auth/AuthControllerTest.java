@@ -9,20 +9,32 @@ import com.cinema.booking.auth.dto.ResetPasswordRequest;
 import com.cinema.booking.common.exception.EmailAlreadyExistsException;
 import com.cinema.booking.common.exception.InvalidCredentialsException;
 import com.cinema.booking.common.exception.InvalidResetTokenException;
+import com.cinema.booking.common.exception.ResourceNotFoundException;
+import com.cinema.booking.security.UserPrincipal;
 import com.cinema.booking.user.UserRole;
+import com.cinema.booking.user.UserService;
+import com.cinema.booking.user.dto.UserResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.OffsetDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,6 +42,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(AuthController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class AuthControllerTest {
+
+    private static final Long CURRENT_USER_ID = 1L;
 
     @Autowired
     private MockMvc mockMvc;
@@ -39,6 +53,24 @@ class AuthControllerTest {
 
     @MockBean
     private AuthService authService;
+
+    @MockBean
+    private UserService userService;
+
+    // addFilters=false tat JwtAuthenticationFilter - set truc tiep
+    // SecurityContext o day de @AuthenticationPrincipal trong
+    // AuthController.me khong bi null, giong pattern BookingControllerTest.
+    @BeforeEach
+    void setUpAuthentication() {
+        UserPrincipal principal = new UserPrincipal(CURRENT_USER_ID, "user@example.com", UserRole.USER);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(principal, null, List.of()));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
 
     private AuthResponse sampleResponse() {
         return new AuthResponse("fake-jwt", 1L, "Nguyen Van A", "user@example.com", UserRole.USER);
@@ -172,5 +204,28 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new GoogleLoginRequest(""))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void me_returns200WithCurrentUser() throws Exception {
+        UserResponse response = new UserResponse(
+                CURRENT_USER_ID, "Nguyen Van A", "user@example.com", "LOCAL", UserRole.USER, true,
+                OffsetDateTime.parse("2026-08-01T10:00:00+07:00"));
+        when(userService.findById(CURRENT_USER_ID)).thenReturn(response);
+
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.email").value("user@example.com"))
+                .andExpect(jsonPath("$.role").value("USER"));
+    }
+
+    @Test
+    void me_returns404WhenUserMissing() throws Exception {
+        when(userService.findById(CURRENT_USER_ID))
+                .thenThrow(new ResourceNotFoundException("Khong tim thay user voi id=" + CURRENT_USER_ID));
+
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isNotFound());
     }
 }

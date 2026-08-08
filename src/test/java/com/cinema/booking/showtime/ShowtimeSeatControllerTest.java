@@ -1,6 +1,7 @@
 package com.cinema.booking.showtime;
 
 import com.cinema.booking.common.exception.ResourceNotFoundException;
+import com.cinema.booking.showtime.dto.SeatStatus;
 import com.cinema.booking.showtime.dto.ShowtimeSeatMapResponse;
 import com.cinema.booking.showtime.dto.ShowtimeSeatResponse;
 import org.junit.jupiter.api.Test;
@@ -37,14 +38,19 @@ class ShowtimeSeatControllerTest {
                 OffsetDateTime.parse("2026-08-01T10:00:00+07:00"),
                 OffsetDateTime.parse("2026-08-01T12:00:00+07:00"),
                 new BigDecimal("90000"),
-                List.of(new ShowtimeSeatResponse(1L, "A", 1, 1L, "VIP", new BigDecimal("135000.00")))
+                List.of(
+                        new ShowtimeSeatResponse(1L, "A", 1, 1L, "VIP", new BigDecimal("135000.00"), SeatStatus.AVAILABLE),
+                        new ShowtimeSeatResponse(2L, "A", 2, 1L, "VIP", new BigDecimal("135000.00"), SeatStatus.BOOKED)
+                )
         );
         when(showtimeService.getSeatMap(eq(1L))).thenReturn(response);
 
         mockMvc.perform(get("/api/showtimes/1/seats"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.movieTitle").value("Avengers"))
-                .andExpect(jsonPath("$.seats[0].seatTypeName").value("VIP"));
+                .andExpect(jsonPath("$.seats[0].seatTypeName").value("VIP"))
+                .andExpect(jsonPath("$.seats[0].status").value("AVAILABLE"))
+                .andExpect(jsonPath("$.seats[1].status").value("BOOKED"));
     }
 
     @Test

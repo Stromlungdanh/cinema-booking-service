@@ -1,5 +1,7 @@
 package com.cinema.booking.showtime;
 
+import com.cinema.booking.booking.BookingSeatRepository;
+import com.cinema.booking.booking.BookingStatus;
 import com.cinema.booking.cinema.CinemaRepository;
 import com.cinema.booking.common.exception.ResourceNotFoundException;
 import com.cinema.booking.movie.Movie;
@@ -19,6 +21,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +36,7 @@ public class ShowtimeService {
     private final RoomRepository roomRepository;
     private final CinemaRepository cinemaRepository;
     private final SeatRepository seatRepository;
+    private final BookingSeatRepository bookingSeatRepository;
 
     @Transactional
     public ShowtimeResponse create(ShowtimeRequest request) {
@@ -81,13 +85,17 @@ public class ShowtimeService {
         return showtimes.stream().map(ShowtimeMapper::toResponse).toList();
     }
 
-    // Man hinh public: so do ghe + gia cho 1 suat chieu (Chua co trang thai
-    // con trong/da dat - viec do thuoc luong Booking, chua lam o buoc nay).
+    // Man hinh public: so do ghe + gia + trang thai (da dat/con trong) cho 1
+    // suat chieu. Trang thai chi phan anh tai thoi diem goi API, khong chong
+    // race condition (viec do de danh cho Giai doan 2 - Redis seat-hold/lock).
     @Transactional(readOnly = true)
     public ShowtimeSeatMapResponse getSeatMap(Long showtimeId) {
         Showtime showtime = getShowtimeOrThrow(showtimeId);
         List<Seat> seats = seatRepository.findByRoomIdOrderByRowLabelAscColNumberAsc(showtime.getRoom().getId());
-        return ShowtimeMapper.toSeatMapResponse(showtime, seats);
+        List<Long> seatIds = seats.stream().map(Seat::getId).toList();
+        Set<Long> bookedSeatIds = Set.copyOf(bookingSeatRepository.findBookedSeatIds(
+                showtimeId, List.of(BookingStatus.PENDING, BookingStatus.PAID), seatIds));
+        return ShowtimeMapper.toSeatMapResponse(showtime, seats, bookedSeatIds);
     }
 
     private Showtime getShowtimeOrThrow(Long id) {

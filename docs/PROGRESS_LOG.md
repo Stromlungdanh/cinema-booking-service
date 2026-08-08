@@ -45,6 +45,10 @@ timeline
     section 2026-08-06 — Quen mat khau + Google SSO (het Giai doan 1)
         Quen/dat lai mat khau (luong thuong) : password_reset_tokens (Postgres, TTL 30p) : gui "email" bang log console : test (195 test)
         Login Google/SSO : ID token flow : GoogleTokenVerifierService : auto-link user LOCAL theo email da xac minh : test (203 test)
+    section 2026-08-08 — Chuan bi frontend: CORS, trang thai ghe, /api/auth/me
+        CORS config : allowedOrigins tu FRONTEND_URL : test (207 test)
+        Seat map tra trang thai AVAILABLE/BOOKED : tai dung findBookedSeatIds
+        GET /api/auth/me : lay lai user hien tai tu JWT sau F5
 ```
 
 Xem chi tiết từng mốc ở các mục bên dưới (bấm vào tiêu đề để mở rộng).
@@ -1125,6 +1129,61 @@ phiên này — cần tự tạo OAuth Client ID trên Google Cloud Console (bư
 ngoài phạm vi code, phải làm thủ công trên web Google) và set env var
 `GOOGLE_CLIENT_ID` để tính năng hoạt động với token thật từ 1 nút
 "Sign in with Google" thật (sẽ làm khi bắt đầu code frontend).
+
+**Trạng thái:** đã chạy `mvn test` pass, chưa commit.
+
+</details>
+
+<details>
+<summary><strong>2026-08-08 — Chuẩn bị frontend: CORS, trạng thái ghế, /api/auth/me</strong> — 3 bổ sung nhỏ ở BE phát hiện khi rà API để thiết kế frontend, làm trước khi viết frontend</summary>
+
+**Mục đích:** trong lúc rà toàn bộ API (user-facing + admin) để lên kế
+hoạch viết frontend đầy đủ, phát hiện 3 chỗ backend cần bổ sung trước để
+frontend gọi được và có đúng UX mong muốn — làm ở BE trước, frontend sẽ
+lên kế hoạch riêng ở phiên sau.
+
+**Đã làm:**
+- `security/SecurityConfig.java`: thêm bean `CorsConfigurationSource`
+  đọc property `app.cors.allowed-origins` (`application.yml`, default
+  `${FRONTEND_URL:http://localhost:5173}`, hỗ trợ nhiều origin cách nhau
+  bởi dấu phẩy), wire vào `securityFilterChain` bằng
+  `.cors(cors -> cors.configurationSource(...))`. Trước đây hoàn toàn
+  chưa có CORS nào — browser sẽ chặn mọi request từ 1 frontend khác
+  origin `localhost:8080`.
+- `showtime/dto/SeatStatus.java` (mới) — enum `AVAILABLE | BOOKED`.
+  `ShowtimeSeatResponse` thêm field `status`. `ShowtimeService.getSeatMap`
+  gọi lại **`BookingSeatRepository.findBookedSeatIds`** (đã có sẵn, dùng
+  trong `BookingService.create`) với `statuses = [PENDING, PAID]` và
+  toàn bộ seat id của phòng, để đánh dấu ghế nào đã bị đặt.
+  `ShowtimeMapper.toSeatMapResponse` nhận thêm `Set<Long> bookedSeatIds`
+  để set status từng ghế. Trước đây endpoint này trả mọi ghế như đang
+  trống — người dùng chỉ biết ghế đã bị đặt khi bấm "Đặt vé" và nhận lỗi
+  409 (không đổi gì ở phần chống race condition, vẫn để dành Giai đoạn 2).
+- `AuthController`: thêm `GET /api/auth/me` — tái dùng thẳng
+  `UserService.findById(principal.id())` (đang dùng cho admin, trả
+  `UserResponse`, tự throw `ResourceNotFoundException` nếu không có),
+  không tạo DTO/service method riêng. `SecurityConfig`: thêm rule
+  `.requestMatchers("/api/auth/me").authenticated()` **đặt trước** rule
+  `/api/auth/**` permitAll (Spring Security so khớp theo thứ tự, nếu để
+  sau thì `/api/auth/me` sẽ lọt vào permitAll và NPE vì principal null).
+
+**Quyết định kỹ thuật:**
+- Tái dùng `findBookedSeatIds` khiến package `showtime` phụ thuộc ngược
+  vào `booking` (trước đó chỉ có chiều `booking` → `showtime`), tạo phụ
+  thuộc 2 chiều giữa 2 package. Chấp nhận trade-off này ở quy mô
+  monolith (tái dùng đúng data/query có sẵn, tốt hơn viết lại 1 query
+  trùng lặp) — sẽ tự nhiên biến mất khi tách microservice ở Giai đoạn 4.
+- Không thêm test riêng cho CORS bean (khó test hữu ích ở unit-test
+  level) — sẽ verify bằng cách gọi thật từ frontend khi bắt đầu code
+  frontend.
+
+**Test:** `ShowtimeSeatControllerTest`/`ShowtimeServiceTest` cập nhật +
+thêm case ghế `BOOKED` khi đã có booking `PENDING`/`PAID`.
+`AuthControllerTest` thêm case `/api/auth/me` 200 (có principal) và 404
+(user không tồn tại). `SecurityConfigAccessTest` (test slice dùng
+`SecurityConfig` thật) thêm case `/api/auth/me` → 401 khi anonymous, xác
+nhận rule cụ thể đứng trước rule permitAll rộng hơn. Tổng `mvn test`:
+207 test, 0 fail/error, `BUILD SUCCESS`.
 
 **Trạng thái:** đã chạy `mvn test` pass, chưa commit.
 

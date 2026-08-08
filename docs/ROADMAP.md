@@ -4,6 +4,9 @@
 > án ra: **Dự án này làm gì? Đang tới đâu rồi? Tiếp theo là gì?**
 > Chi tiết từng task cụ thể (đã làm gì, tại sao, làm như thế nào) nằm ở
 > [`PROGRESS_LOG.md`](./PROGRESS_LOG.md) — file này chỉ giữ bức tranh lớn.
+> Dev mới muốn hiểu **code hiện tại hoạt động ra sao** (từng module,
+> từng luồng, từ request tới response) nên đọc
+> [`CODEBASE_GUIDE.md`](./CODEBASE_GUIDE.md).
 
 ## 1. Dự án là gì
 
@@ -198,8 +201,18 @@ backend, dùng thư viện chính thức `google-api-client` để verify chữ 
 fallback theo email (auto-link tài khoản LOCAL có sẵn cùng email đã
 được Google xác minh, giữ nguyên `password_hash`). Chưa test được với
 token Google thật (cần tạo OAuth Client ID trên Google Cloud Console —
-việc thủ công ngoài phạm vi code, để khi làm frontend). `mvn test` pass
-(203 test).
+việc thủ công ngoài phạm vi code, để khi làm frontend).
+
+Chuẩn bị cho frontend, đã bổ sung 3 việc nhỏ ở BE phát hiện khi rà toàn
+bộ API: **CORS** (trước đây chưa cấu hình gì, browser sẽ chặn request từ
+frontend khác origin — thêm `CorsConfigurationSource` đọc từ
+`FRONTEND_URL`, default `http://localhost:5173`); **trạng thái ghế**
+trong `GET /api/showtimes/{id}/seats` (trước đây trả mọi ghế như đang
+trống, giờ có `status: AVAILABLE|BOOKED` dựa theo booking
+`PENDING`/`PAID` hiện có — khác với bài toán race condition của Giai
+đoạn 2); và **`GET /api/auth/me`** (lấy lại thông tin user hiện tại từ
+JWT, để F5 trang không mất thông tin đăng nhập). `mvn test` pass
+(207 test).
 
 Xem chi tiết từng task, quyết định kỹ thuật, và lý do tại
 [`PROGRESS_LOG.md`](./PROGRESS_LOG.md).

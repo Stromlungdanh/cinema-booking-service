@@ -8,6 +8,7 @@ public record ShowtimeSeatResponse(
         Integer colNumber,
         Long seatTypeId,
         String seatTypeName,
-        BigDecimal price
+        BigDecimal price,
+        SeatStatus status
 ) {
 }

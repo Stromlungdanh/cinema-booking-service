@@ -1,5 +1,7 @@
 package com.cinema.booking.showtime;
 
+import com.cinema.booking.booking.BookingSeatRepository;
+import com.cinema.booking.booking.BookingStatus;
 import com.cinema.booking.cinema.CinemaRepository;
 import com.cinema.booking.common.exception.ResourceNotFoundException;
 import com.cinema.booking.movie.Movie;
@@ -9,6 +11,7 @@ import com.cinema.booking.room.RoomRepository;
 import com.cinema.booking.seat.Seat;
 import com.cinema.booking.seat.SeatRepository;
 import com.cinema.booking.seattype.SeatType;
+import com.cinema.booking.showtime.dto.SeatStatus;
 import com.cinema.booking.showtime.dto.ShowtimeRequest;
 import com.cinema.booking.showtime.dto.ShowtimeResponse;
 import com.cinema.booking.showtime.dto.ShowtimeSeatMapResponse;
@@ -28,6 +31,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +52,9 @@ class ShowtimeServiceTest {
 
     @Mock
     private SeatRepository seatRepository;
+
+    @Mock
+    private BookingSeatRepository bookingSeatRepository;
 
     @InjectMocks
     private ShowtimeService showtimeService;
@@ -232,12 +239,33 @@ class ShowtimeServiceTest {
         when(showtimeRepository.findById(1L)).thenReturn(Optional.of(showtime));
         when(seatRepository.findByRoomIdOrderByRowLabelAscColNumberAsc(1L))
                 .thenReturn(List.of(seat(1L, "A", 1, seatType(1L, "VIP", "1.50"))));
+        when(bookingSeatRepository.findBookedSeatIds(eq(1L), any(), any())).thenReturn(List.of());
 
         ShowtimeSeatMapResponse response = showtimeService.getSeatMap(1L);
 
         assertEquals(1, response.seats().size());
         assertEquals(0, new BigDecimal("135000.00").compareTo(response.seats().get(0).price()));
         assertEquals("VIP", response.seats().get(0).seatTypeName());
+        assertEquals(SeatStatus.AVAILABLE, response.seats().get(0).status());
+    }
+
+    @Test
+    void getSeatMap_marksAlreadyBookedSeatAsBooked() {
+        Showtime showtime = new Showtime();
+        showtime.setId(1L);
+        showtime.setMovie(movie(1L, "Avengers"));
+        showtime.setRoom(room(1L, "Phong 1"));
+        showtime.setBasePrice(new BigDecimal("90000"));
+        SeatType vip = seatType(1L, "VIP", "1.50");
+        when(showtimeRepository.findById(1L)).thenReturn(Optional.of(showtime));
+        when(seatRepository.findByRoomIdOrderByRowLabelAscColNumberAsc(1L))
+                .thenReturn(List.of(seat(1L, "A", 1, vip), seat(2L, "A", 2, vip)));
+        when(bookingSeatRepository.findBookedSeatIds(eq(1L), any(), any())).thenReturn(List.of(2L));
+
+        ShowtimeSeatMapResponse response = showtimeService.getSeatMap(1L);
+
+        assertEquals(SeatStatus.AVAILABLE, response.seats().get(0).status());
+        assertEquals(SeatStatus.BOOKED, response.seats().get(1).status());
     }
 
     @Test

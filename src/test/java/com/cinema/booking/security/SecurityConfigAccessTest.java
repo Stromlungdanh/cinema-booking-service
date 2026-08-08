@@ -1,9 +1,12 @@
 package com.cinema.booking.security;
 
+import com.cinema.booking.auth.AuthController;
+import com.cinema.booking.auth.AuthService;
 import com.cinema.booking.brand.BrandController;
 import com.cinema.booking.brand.BrandService;
 import com.cinema.booking.movie.MoviePublicController;
 import com.cinema.booking.movie.MovieService;
+import com.cinema.booking.user.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -21,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 // file *ControllerTest khac dang tat security bang addFilters=false). Import
 // thang SecurityConfig de dung dung filter chain that, khong phai chain mac
 // dinh cua Spring Boot khi chua co bean SecurityFilterChain nao.
-@WebMvcTest({BrandController.class, MoviePublicController.class})
+@WebMvcTest({BrandController.class, MoviePublicController.class, AuthController.class})
 @Import(SecurityConfig.class)
 class SecurityConfigAccessTest {
 
@@ -33,6 +36,12 @@ class SecurityConfigAccessTest {
 
     @MockBean
     private MovieService movieService;
+
+    @MockBean
+    private AuthService authService;
+
+    @MockBean
+    private UserService userService;
 
     // SecurityConfig can bean nay de tao JwtAuthenticationFilter (constructor
     // injection), khong dung toi trong cac test nay vi @WithMockUser tu set
@@ -69,5 +78,14 @@ class SecurityConfigAccessTest {
 
         mockMvc.perform(get("/api/movies"))
                 .andExpect(status().isOk());
+    }
+
+    // /api/auth/me phai doi authenticated du nam duoi tien to /api/auth/**
+    // (permitAll) - rule cu the "/api/auth/me" phai duoc dat truoc rule rong
+    // hon trong SecurityConfig, test nay xac nhan dung thu tu do.
+    @Test
+    void authMeEndpoint_returns401WhenAnonymous() throws Exception {
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized());
     }
 }

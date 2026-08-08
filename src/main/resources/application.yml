@@ -48,3 +48,10 @@ jwt:
 # tinh nang "Login Google" hoat dong duoc voi token that.
 google:
   client-id: ${GOOGLE_CLIENT_ID:}
+
+# Origin cua frontend duoc phep goi API (CORS). Nhieu origin cach nhau
+# boi dau phay (VD them domain production sau nay). Default khop port
+# mac dinh cua Vite dev server.
+app:
+  cors:
+    allowed-origins: ${FRONTEND_URL:http://localhost:5173}
